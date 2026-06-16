@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>HVAC Heat Load Calculator</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.full.min.js"></script>
+<!-- SheetJS loaded on-demand in exportExcel() -->
 <style>
   :root { --cyan: #0e7490; }
   body { font-family: 'Courier New', monospace; background: #020617; color: #e2e8f0; }
@@ -117,7 +117,7 @@
       <span class="text-xs text-slate-400 hidden md:inline">CFM: <span id="nav-cfm" class="text-emerald-400 font-bold">0</span></span>
       <button class="btn btn-slate text-xs" onclick="doSave()">💾 Save</button>
       <button class="btn btn-slate text-xs" onclick="doLoad()">📂 Load</button>
-      <button class="btn btn-em text-xs" onclick="exportExcel()">⬇ Excel</button>
+      <button id="excelBtn" class="btn btn-em text-xs" onclick="exportExcel()">⬇ Excel</button>
       <button class="btn btn-cyan text-xs" onclick="window.print()">🖨 Print</button>
     </div>
   </div>
@@ -1171,13 +1171,66 @@ setInterval(() => {
 }, 30000);
 
 // ═══════════════════════════════════════════════════════════════════════════
-// EXCEL EXPORT (using SheetJS)
+// EXCEL EXPORT (using SheetJS — loaded dynamically with CDN fallbacks)
 // ═══════════════════════════════════════════════════════════════════════════
-function exportExcel() {
-  if (typeof XLSX === 'undefined') {
-    alert('SheetJS library not loaded. Check your internet connection and try again.');
+function loadSheetJS() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  const cdns = [
+    'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.3/xlsx.full.min.js',
+  ];
+  function tryNext(i) {
+    if (i >= cdns.length) return Promise.reject(new Error('All CDNs failed'));
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = cdns[i];
+      s.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('Loaded but XLSX undefined'));
+      s.onerror = () => { document.head.removeChild(s); reject(); };
+      document.head.appendChild(s);
+    }).catch(() => tryNext(i + 1));
+  }
+  return tryNext(0);
+}
+
+function exportCSVFallback() {
+  const p = STATE.project;
+  const rows = [
+    ['HVAC Heat Load Summary'],
+    [`Customer: ${p.customer||'—'}`, `Project: ${p.name||'—'}`, `Engineer: ${p.estimatedBy||'—'}`],
+    [],
+    ['#','Space','Area (sqft)','Occ','Fresh Air CFM','ERSH (BTU/hr)','ERLH (BTU/hr)',
+     'GTH (BTU/hr)','Calc TR','SHF','Dehum CFM','IDU Type','Sel TR'],
+  ];
+  STATE.rooms.forEach((r, i) => {
+    const c = calcRoom(r);
+    rows.push([i+1, r.name||`Room ${i+1}`, +r.area||0, +r.occupancy||0,
+      c.freshAir.toFixed(0), c.ershTotal.toFixed(0), c.erlhTotal.toFixed(0),
+      c.gth.toFixed(0), c.tonnage.toFixed(2), c.ershf.toFixed(4),
+      c.dehCfm.toFixed(0), r.idiuType, +r.selectedTR||0]);
+  });
+  const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `HeatLoad_${(p.name||'Project').replace(/[^\w\-]/g,'_')}.csv`;
+  a.click();
+}
+
+async function exportExcel() {
+  const btn = document.getElementById('excelBtn');
+  if (btn) { btn.textContent = '⏳ Loading...'; btn.disabled = true; }
+  let XLSX;
+  try {
+    XLSX = await loadSheetJS();
+  } catch(e) {
+    if (btn) { btn.textContent = '⬇ Excel'; btn.disabled = false; }
+    if (confirm('Excel library could not be loaded (no internet?).\n\nDownload as CSV instead? (opens in Excel)')) {
+      exportCSVFallback();
+    }
     return;
   }
+  if (btn) { btn.textContent = '⬇ Excel'; btn.disabled = false; }
   const wb   = XLSX.utils.book_new();
   const p    = STATE.project;
   const rooms = STATE.rooms;
@@ -1393,7 +1446,11 @@ function exportExcel() {
 
   // Write file
   const filename = `HeatLoad_${(p.name||'Project').replace(/[^\w\-]/g,'_')}.xlsx`;
-  XLSX.writeFile(wb, filename);
+  try {
+    XLSX.writeFile(wb, filename);
+  } catch(e) {
+    alert('Export failed: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
