@@ -6,115 +6,136 @@
 <title>HVAC Heat Load Calculator</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- SheetJS loaded on-demand in exportExcel() -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --cyan: #0e7490; }
-  body { font-family: 'Courier New', monospace; background: #020617; color: #e2e8f0; }
+  :root {
+    --primary:#0369a1; --primary-h:#0284c7; --primary-bg:#e0f2fe;
+    --success:#059669; --warn:#d97706; --danger:#dc2626;
+    --border:#e2e8f0; --bg:#f1f5f9; --card:#ffffff;
+    --text:#1e293b; --muted:#64748b; --light:#94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body { font-family:'Inter',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); }
 
   /* Tooltip */
-  [data-tip] { position: relative; cursor: help; }
+  [data-tip] { position:relative; cursor:help; }
   [data-tip]:hover::after {
-    content: attr(data-tip);
-    position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
-    background: #1e293b; color: #94a3b8; font-size: 11px; padding: 4px 8px;
-    border-radius: 4px; border: 1px solid #334155; white-space: nowrap;
-    z-index: 9999; pointer-events: none; min-width: 160px; text-align: center;
+    content:attr(data-tip); position:absolute; bottom:125%; left:50%; transform:translateX(-50%);
+    background:#1e293b; color:#e2e8f0; font-size:11px; padding:4px 8px;
+    border-radius:4px; border:1px solid #334155; white-space:nowrap;
+    z-index:9999; pointer-events:none; min-width:160px; text-align:center;
   }
 
-  /* Input styles */
-  .inp {
-    width: 100%; background: #1e293b; border: 1px solid #475569;
-    border-radius: 4px; padding: 4px 8px; font-size: 13px; color: #cffafe;
-    outline: none; transition: border-color 0.15s;
-  }
-  .inp:focus { border-color: #0e7490; box-shadow: 0 0 0 1px rgba(14,116,144,0.3); }
-  .inp-sm { padding: 3px 6px; font-size: 12px; }
+  /* Inputs */
+  .inp { width:100%; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; font-size:13px; color:var(--text); outline:none; transition:border-color .15s,box-shadow .15s; font-family:inherit; }
+  .inp:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(3,105,161,.12); background:#fff; }
+  .inp-sm { padding:4px 8px; font-size:12px; }
+  select.inp { cursor:pointer; }
+  textarea.inp { resize:vertical; min-height:48px; }
 
-  select.inp { cursor: pointer; }
+  /* Cards */
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .card-inner { background:#f8fafc; border:1px solid var(--border); border-radius:8px; }
 
-  /* Card */
-  .card { background: #0f172a; border: 1px solid #334155; border-radius: 12px; }
-  .card-inner { background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 8px; }
+  /* Badges */
+  .badge-cyan { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .badge-em   { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; }
+  .badge-amb  { background:#fef9c3; color:#a16207; border:1px solid #fde047; }
+  .badge-pur  { background:#f3e8ff; color:#7c3aed; border:1px solid #e9d5ff; }
 
-  /* Badge */
-  .badge-cyan  { background: rgba(8,145,178,0.15); color: #22d3ee; border: 1px solid rgba(8,145,178,0.3); }
-  .badge-em    { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
-  .badge-amb   { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
-  .badge-pur   { background: rgba(167,139,250,0.15); color: #c4b5fd; border: 1px solid rgba(167,139,250,0.3); }
-
-  /* Tab */
-  .tab-btn { padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
-  .tab-btn.active { background: #0e7490; color: #fff; }
-  .tab-btn:not(.active) { background: #1e293b; color: #94a3b8; }
-  .tab-btn:not(.active):hover { color: #e2e8f0; }
+  /* Tabs */
+  .tab-btn { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; transition:all .15s; font-family:inherit; }
+  .tab-btn.active { background:var(--primary); color:#fff; box-shadow:0 2px 6px rgba(3,105,161,.3); }
+  .tab-btn:not(.active) { background:transparent; color:var(--muted); }
+  .tab-btn:not(.active):hover { background:#e2e8f0; color:var(--text); }
 
   /* Buttons */
-  .btn { border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 14px; transition: all 0.15s; }
-  .btn-cyan { background: #0e7490; color: #fff; }
-  .btn-cyan:hover { background: #0891b2; }
-  .btn-slate { background: #334155; color: #cbd5e1; }
-  .btn-slate:hover { background: #475569; }
-  .btn-em   { background: #059669; color: #fff; }
-  .btn-em:hover { background: #10b981; }
-  .btn-red  { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
-  .btn-red:hover { background: rgba(239,68,68,0.25); }
+  .btn { border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; padding:7px 14px; transition:all .15s; font-family:inherit; }
+  .btn-cyan  { background:var(--primary); color:#fff; }
+  .btn-cyan:hover  { background:var(--primary-h); }
+  .btn-slate { background:#f1f5f9; color:var(--muted); border:1px solid var(--border); }
+  .btn-slate:hover { background:#e2e8f0; color:var(--text); }
+  .btn-em    { background:var(--success); color:#fff; }
+  .btn-em:hover    { background:#10b981; }
+  .btn-red   { background:#fee2e2; color:#dc2626; border:1px solid #fecaca; }
+  .btn-red:hover   { background:#fecaca; }
+  .btn-amber { background:#fef3c7; color:#d97706; border:1px solid #fde68a; }
+  .btn-amber:hover { background:#fde68a; }
 
-  /* Label */
-  .lbl { display: block; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+  /* Labels */
+  .lbl { display:block; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
 
   /* Section header */
-  .sec-hdr { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid #334155; padding-bottom: 4px; margin-bottom: 8px; }
+  .sec-hdr { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; border-bottom:2px solid var(--primary-bg); padding-bottom:6px; margin-bottom:12px; }
 
   /* Result box */
-  .res-box { text-align: center; }
-  .res-val { font-size: 22px; font-weight: 700; }
-  .res-lbl { font-size: 10px; color: #64748b; margin-top: 1px; }
+  .res-box { text-align:center; }
+  .res-val  { font-size:22px; font-weight:700; }
+  .res-lbl  { font-size:10px; color:var(--light); margin-top:2px; }
 
   /* Table */
-  .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .tbl th { background: #1e293b; color: #64748b; padding: 6px 10px; text-align: right; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
-  .tbl th:first-child { text-align: left; }
-  .tbl td { padding: 5px 10px; text-align: right; border-top: 1px solid rgba(51,65,85,0.5); }
-  .tbl td:first-child { text-align: left; }
-  .tbl tbody tr:hover { background: rgba(30,41,59,0.4); }
-  .tbl tfoot tr { border-top: 2px solid #0e7490; background: rgba(30,41,59,0.8); font-weight: 700; }
+  .tbl { width:100%; border-collapse:collapse; font-size:12px; }
+  .tbl th { background:#f8fafc; color:var(--muted); padding:8px 10px; text-align:right; font-weight:700; text-transform:uppercase; font-size:10px; letter-spacing:.05em; border-bottom:2px solid var(--border); }
+  .tbl th:first-child { text-align:left; }
+  .tbl td { padding:7px 10px; text-align:right; border-bottom:1px solid #f1f5f9; color:var(--text); }
+  .tbl td:first-child { text-align:left; }
+  .tbl tbody tr:hover { background:#f0f9ff; }
+  .tbl tfoot tr { border-top:2px solid var(--primary); background:var(--primary-bg); font-weight:700; }
 
-  /* AHU schedule */
-  .ahu-inp { background: #0f172a; border: 1px solid #334155; color: #cffafe; padding: 3px 6px; font-size: 11px; width: 100%; border-radius: 3px; }
+  /* Nav */
+  #top-nav { background:#fff; border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,.07); }
 
-  /* Print styles */
+  /* AHU inputs */
+  .ahu-inp { background:#f8fafc; border:1px solid #cbd5e1; color:var(--text); padding:3px 6px; font-size:11px; width:100%; border-radius:4px; font-family:inherit; }
+  .ahu-inp:focus { border-color:var(--primary); outline:none; }
+
+  /* Room card */
+  .room-card { background:var(--card); border:1px solid var(--border); border-radius:12px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.06); overflow:hidden; transition:box-shadow .15s; }
+  .room-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.1); }
+  .room-hdr { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer; user-select:none; background:#fff; border-bottom:1px solid transparent; transition:background .15s; }
+  .room-hdr:hover { background:#f8fafc; }
+  .room-hdr.open { border-bottom-color:var(--border); }
+
+  /* TR adequacy */
+  .tr-ok    { background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:20px; padding:2px 8px; font-size:11px; font-weight:700; display:inline-block; }
+  .tr-warn  { background:#fef9c3; color:#a16207; border:1px solid #fde047; border-radius:20px; padding:2px 8px; font-size:11px; font-weight:700; display:inline-block; }
+  .tr-under { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:20px; padding:2px 8px; font-size:11px; font-weight:700; display:inline-block; }
+
+  /* Print */
   @media print {
-    body { background: #fff !important; color: #000 !important; font-family: Arial, sans-serif !important; }
-    #top-nav, .no-print, .btn, button { display: none !important; }
-    .card, .card-inner { background: #fff !important; border: 1px solid #ccc !important; }
-    .tab-pane { display: block !important; page-break-before: always; }
-    .tab-pane:first-child { page-break-before: auto; }
-    .tbl th { background: #e5e7eb !important; color: #374151 !important; }
-    .tbl td { color: #374151 !important; }
-    .print-header { display: block !important; }
-    * { color-adjust: exact; -webkit-print-color-adjust: exact; }
-    .res-val { color: #000 !important; }
-    .lbl { color: #374151 !important; }
-    .sec-hdr { color: #374151 !important; border-color: #ccc !important; }
-    .inp { background: #f9fafb !important; border: 1px solid #d1d5db !important; color: #111 !important; }
+    body { background:#fff !important; color:#000 !important; font-family:Arial,sans-serif !important; }
+    #top-nav, .no-print, .btn, button { display:none !important; }
+    .card, .card-inner, .room-card { background:#fff !important; border:1px solid #ccc !important; box-shadow:none !important; }
+    .tab-pane { display:block !important; page-break-before:always; }
+    .tab-pane:first-child { page-break-before:auto; }
+    .tbl th { background:#e5e7eb !important; color:#374151 !important; }
+    .tbl tfoot tr { background:#dbeafe !important; }
+    .print-header { display:block !important; }
+    * { color-adjust:exact; -webkit-print-color-adjust:exact; }
+    .lbl { color:#374151 !important; }
+    .sec-hdr { color:#374151 !important; border-color:#ccc !important; }
+    .inp { background:#f9fafb !important; border:1px solid #d1d5db !important; color:#111 !important; }
+    .room-hdr { border-bottom:1px solid #ccc !important; background:#f9fafb !important; }
   }
-  .print-header { display: none; }
+  .print-header { display:none; }
 </style>
 </head>
 <body class="min-h-screen">
 
 <!-- TOP NAV -->
-<div id="top-nav" class="border-b border-slate-800 sticky top-0 z-30" style="background:rgba(15,23,42,0.95);backdrop-filter:blur(8px);">
+<div id="top-nav" class="sticky top-0 z-30">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
     <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded badge-cyan flex items-center justify-center text-cyan-400 text-sm font-bold">❄</div>
+      <div style="width:36px;height:36px;border-radius:10px;background:#e0f2fe;border:1px solid #bae6fd;display:flex;align-items:center;justify-content:center;font-size:18px;color:#0369a1;">❄</div>
       <div>
-        <div class="font-bold text-sm tracking-wider text-cyan-300">HVAC HEAT LOAD CALCULATOR</div>
-        <div id="nav-project-name" class="text-xs text-slate-500">ASHRAE / Manual J Method</div>
+        <div class="font-bold text-sm tracking-wide" style="color:#0369a1;">HVAC PRO CALCULATOR</div>
+        <div id="nav-project-name" class="text-xs" style="color:#64748b;">ASHRAE / Manual J · Heat Load · Kitchen · AHU · CHW</div>
       </div>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
-      <span class="text-xs text-slate-400 hidden md:inline">Total: <span id="nav-tr" class="text-cyan-400 font-bold">0.00 TR</span></span>
-      <span class="text-xs text-slate-400 hidden md:inline">CFM: <span id="nav-cfm" class="text-emerald-400 font-bold">0</span></span>
+      <span class="text-xs hidden md:inline" style="color:#64748b;">Total: <span id="nav-tr" class="font-bold" style="color:#0369a1;">0.00 TR</span></span>
+      <span class="text-xs hidden md:inline" style="color:#64748b;">CFM: <span id="nav-cfm" class="font-bold" style="color:#059669;">0</span></span>
       <button class="btn btn-slate text-xs" onclick="doSave()">💾 Save</button>
       <button class="btn btn-slate text-xs" onclick="doLoad()">📂 Load</button>
       <button id="excelBtn" class="btn btn-em text-xs" onclick="exportExcel()">⬇ Excel</button>
@@ -147,19 +168,22 @@
     <div><label class="lbl">Customer Name</label><input class="inp" type="text" placeholder="e.g. M/s. HDFC BANK" oninput="STATE.project.customer=this.value;render()" id="inp-customer"/></div>
     <div><label class="lbl">Project Name</label><input class="inp" type="text" placeholder="e.g. HDFC MG Road Mumbai" oninput="STATE.project.name=this.value;render()" id="inp-project"/></div>
     <div><label class="lbl">Estimated By</label><input class="inp" type="text" placeholder="Engineer name" oninput="STATE.project.estimatedBy=this.value;render()" id="inp-estimatedby"/></div>
+    <div><label class="lbl">Location / City</label><input class="inp" type="text" placeholder="e.g. Mumbai, Maharashtra" oninput="STATE.project.location=this.value" id="inp-location"/></div>
+    <div><label class="lbl">Date</label><input class="inp" type="date" oninput="STATE.project.date=this.value" id="inp-date"/></div>
+    <div><label class="lbl">Reference / PO No.</label><input class="inp" type="text" placeholder="e.g. PO-2024-001" oninput="STATE.project.ref=this.value" id="inp-ref"/></div>
   </div>
   <div class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
-    <div class="card-inner p-2 text-xs">
-      <div class="text-slate-400 mb-1">OUTSIDE DESIGN</div>
-      <div>DB: <span class="text-amber-400">107.6°F</span> | RH: 36% | WB: 83°F | TH: 46.75</div>
+    <div class="card-inner p-2 text-xs" style="border-left:3px solid #f97316;">
+      <div class="font-semibold mb-1" style="color:#64748b;">OUTSIDE DESIGN</div>
+      <div>DB: <span style="color:#ea580c;font-weight:700;">107.6°F (42°C)</span> | RH: 36% | WB: 83°F</div>
     </div>
-    <div class="card-inner p-2 text-xs">
-      <div class="text-slate-400 mb-1">INSIDE DESIGN</div>
-      <div>DB: <span class="text-cyan-400">73.4°F</span> | RH: 50% | WB: 61.2°F | TH: 27.2</div>
+    <div class="card-inner p-2 text-xs" style="border-left:3px solid #0369a1;">
+      <div class="font-semibold mb-1" style="color:#64748b;">INSIDE DESIGN</div>
+      <div>DB: <span style="color:#0369a1;font-weight:700;">73.4°F (23°C)</span> | RH: 50% | WB: 61.2°F</div>
     </div>
-    <div class="card-inner p-2 text-xs">
-      <div class="text-slate-400 mb-1">PEAK LOAD TIME</div>
-      <div>APRIL @ <span class="text-emerald-400">16:00 HRS</span> | ADP: 54°F</div>
+    <div class="card-inner p-2 text-xs" style="border-left:3px solid #059669;">
+      <div class="font-semibold mb-1" style="color:#64748b;">PEAK LOAD TIME</div>
+      <div>APRIL @ <span style="color:#059669;font-weight:700;">16:00 HRS</span> | ADP: 54°F</div>
     </div>
   </div>
 </div>
@@ -444,7 +468,8 @@ function defaultRoom() {
     floorFactor: 0.4,
     correctionFactor: 13,
     idiuType: "ductable",
-    selectedTR: ""
+    selectedTR: "",
+    notes: ""
   };
 }
 
@@ -565,12 +590,55 @@ function n(v, dec) {
 function pct(v) { return (v * 100).toFixed(1) + "%"; }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+function buildBreakdown(c) {
+  const items = [
+    { label:'Walls',      val: c.wallBtu,                                        color:'#f97316' },
+    { label:'Glass',      val: c.glassBtu + c.allGlassBtu,                      color:'#facc15' },
+    { label:'Roof',       val: c.roofBtu,                                        color:'#ef4444' },
+    { label:'Partitions', val: c.prtWallBtu+c.prtGlassBtu+c.ceilingBtu+c.floorBtu, color:'#8b5cf6' },
+    { label:'People',     val: c.peopleSens,                                     color:'#06b6d4' },
+    { label:'Lighting',   val: c.lightBtu,                                       color:'#eab308' },
+    { label:'Equipment',  val: c.equipBtu,                                       color:'#64748b' },
+    { label:'Fresh Air',  val: c.faBtu,                                          color:'#22c55e' },
+  ];
+  const total = items.reduce((s,i) => s + (i.val||0), 0) || 1;
+  return items.map(it => {
+    const p = Math.round((it.val||0) / total * 100);
+    return `<div>
+      <div style="display:flex;justify-content:space-between;color:#64748b;margin-bottom:2px;">
+        <span>${it.label}</span><span style="font-weight:600;color:#1e293b;">${p}%</span>
+      </div>
+      <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;">
+        <div style="width:${p}%;height:100%;background:${it.color};border-radius:4px;transition:width .3s;"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function duplicateRoom(id) {
+  const idx = STATE.rooms.findIndex(r => r.id === id);
+  if (idx === -1) return;
+  const copy = JSON.parse(JSON.stringify(STATE.rooms[idx]));
+  copy.id = Date.now() + Math.random();
+  copy.name = (copy.name || 'Room') + ' (Copy)';
+  STATE.rooms.splice(idx + 1, 0, copy);
+  render();
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDER: ROOMS
 // ═══════════════════════════════════════════════════════════════════════════
 function renderRooms() {
   const container = document.getElementById('rooms-container');
   if (!container) return;
+  if (STATE.rooms.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:60px 20px;color:#94a3b8;">
+      <div style="font-size:48px;margin-bottom:16px;">🏢</div>
+      <div style="font-size:18px;font-weight:600;color:#64748b;margin-bottom:8px;">No rooms added yet</div>
+      <div style="font-size:14px;">Click "+ Add Room / Space" below to start the heat load calculation</div>
+    </div>`;
+    return;
+  }
   container.innerHTML = STATE.rooms.map((r, idx) => buildRoomCard(r, idx)).join('');
 }
 
@@ -579,26 +647,37 @@ function buildRoomCard(r, idx) {
   const collapsed = !!STATE.collapsed[r.id];
   const rid = r.id;
 
+  const trBadge = (selTR => {
+    if (!selTR || +selTR === 0) return '';
+    const ratio = +selTR / c.tonnage;
+    if (ratio >= 1.0) return `<span class="tr-ok">✓ ${selTR} TR</span>`;
+    if (ratio >= 0.9) return `<span class="tr-warn">⚠ ${selTR} TR</span>`;
+    return `<span class="tr-under">✗ ${selTR} TR Undersized!</span>`;
+  })(r.selectedTR);
+
   const hdr = `
-  <div class="flex items-center justify-between px-5 py-3 cursor-pointer transition-colors"
-       style="background:rgba(30,41,59,0.8);" onclick="toggleRoom('${rid}')">
+  <div class="room-hdr ${collapsed?'':'open'}" onclick="toggleRoom('${rid}')">
     <div class="flex items-center gap-3">
-      <span class="w-7 h-7 rounded-full badge-cyan flex items-center justify-center text-xs font-bold">${idx+1}</span>
-      <span class="font-semibold text-slate-100">${esc(r.name) || '<span class="italic text-slate-500">Unnamed Room</span>'}</span>
-      ${r.area ? `<span class="text-xs text-slate-500">${esc(r.area)} sq.ft</span>` : ''}
-    </div>
-    <div class="flex items-center gap-4">
-      <div class="text-right">
-        <div class="text-lg font-bold text-cyan-400">${n(c.tonnage)} TR</div>
-        <div class="text-xs text-slate-500">Fresh Air: ${n(c.freshAir, 0)} CFM</div>
+      <span style="width:28px;height:28px;border-radius:50%;background:#e0f2fe;border:1px solid #bae6fd;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0369a1;flex-shrink:0;">${idx+1}</span>
+      <div>
+        <span class="font-semibold" style="color:#1e293b;">${esc(r.name) || '<span style="color:#94a3b8;font-style:italic;">Unnamed Room</span>'}</span>
+        ${r.area ? `<span class="text-xs ml-2" style="color:#94a3b8;">${esc(r.area)} sq.ft</span>` : ''}
       </div>
-      <button onclick="event.stopPropagation();deleteRoom('${rid}')" class="btn btn-red text-xs px-2 py-0.5 no-print" style="padding:2px 8px;">✕</button>
-      <span class="text-slate-500 text-sm">${collapsed ? '▶' : '▼'}</span>
+      ${trBadge}
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="text-right hidden md:block">
+        <div class="text-lg font-bold" style="color:#0369a1;">${n(c.tonnage)} TR</div>
+        <div class="text-xs" style="color:#94a3b8;">FA: ${n(c.freshAir, 0)} CFM</div>
+      </div>
+      <button onclick="event.stopPropagation();duplicateRoom('${rid}')" class="btn btn-amber no-print" style="padding:3px 8px;font-size:11px;" title="Duplicate room">⧉ Copy</button>
+      <button onclick="event.stopPropagation();deleteRoom('${rid}')" class="btn btn-red no-print" style="padding:3px 8px;font-size:11px;">✕</button>
+      <span style="color:#94a3b8;font-size:12px;">${collapsed ? '▶' : '▼'}</span>
     </div>
   </div>`;
 
   if (collapsed) {
-    return `<div class="card mb-4 overflow-hidden">${hdr}</div>`;
+    return `<div class="room-card">${hdr}</div>`;
   }
 
   const wallInputs = WALL_DIRS.map(d => `
@@ -721,32 +800,37 @@ function buildRoomCard(r, idx) {
 
     <!-- Results Panel -->
     <div class="card-inner p-4">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-        <div class="res-box"><div class="res-val text-cyan-400">${n(c.tonnage)}</div><div class="res-lbl">Calculated TR</div></div>
-        <div class="res-box"><div class="res-val text-emerald-400">${n(c.freshAir, 0)}</div><div class="res-lbl">Fresh Air CFM</div></div>
-        <div class="res-box"><div class="res-val text-amber-400">${pct(c.ershf)}</div><div class="res-lbl">ERSHF (SHF)</div></div>
-        <div class="res-box"><div class="res-val text-purple-400">${n(c.dehCfm, 0)}</div><div class="res-lbl">Dehum. CFM</div></div>
+      <div class="sec-hdr">Calculation Results</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+        <div class="res-box" style="background:#f0f9ff;border-radius:8px;padding:10px;border:1px solid #bae6fd;"><div class="res-val" style="color:#0369a1;">${n(c.tonnage)}</div><div class="res-lbl">Calculated TR</div></div>
+        <div class="res-box" style="background:#f0fdf4;border-radius:8px;padding:10px;border:1px solid #bbf7d0;"><div class="res-val" style="color:#15803d;">${n(c.freshAir, 0)}</div><div class="res-lbl">Fresh Air CFM</div></div>
+        <div class="res-box" style="background:#fffbeb;border-radius:8px;padding:10px;border:1px solid #fde68a;"><div class="res-val" style="color:#d97706;">${pct(c.ershf)}</div><div class="res-lbl">ERSHF (SHF)</div></div>
+        <div class="res-box" style="background:#faf5ff;border-radius:8px;padding:10px;border:1px solid #e9d5ff;"><div class="res-val" style="color:#7c3aed;">${n(c.dehCfm, 0)}</div><div class="res-lbl">Dehum. CFM</div></div>
       </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-700">
-        <div class="res-box"><div class="text-lg font-semibold text-slate-300">${n(c.ershTotal, 0)}</div><div class="res-lbl">ERSH (BTU/hr)</div></div>
-        <div class="res-box"><div class="text-lg font-semibold text-slate-300">${n(c.erlhTotal, 0)}</div><div class="res-lbl">ERLH (BTU/hr)</div></div>
-        <div class="res-box"><div class="text-lg font-semibold text-slate-300">${n(c.gth, 0)}</div><div class="res-lbl">Grand Total Heat (BTU/hr)</div></div>
-        <div class="res-box"><div class="text-lg font-semibold text-slate-300">${c.adp}°F</div><div class="res-lbl">ADP</div></div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3" style="border-top:1px solid #e2e8f0;">
+        <div class="res-box"><div style="font-size:16px;font-weight:600;color:#1e293b;">${n(c.ershTotal, 0)}</div><div class="res-lbl">ERSH (BTU/hr)</div></div>
+        <div class="res-box"><div style="font-size:16px;font-weight:600;color:#1e293b;">${n(c.erlhTotal, 0)}</div><div class="res-lbl">ERLH (BTU/hr)</div></div>
+        <div class="res-box"><div style="font-size:16px;font-weight:600;color:#1e293b;">${n(c.gth, 0)}</div><div class="res-lbl">Grand Total Heat (BTU/hr)</div></div>
+        <div class="res-box"><div style="font-size:16px;font-weight:600;color:#1e293b;">${c.adp}°F</div><div class="res-lbl">ADP</div></div>
       </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-700 mt-3 text-xs">
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.wallBtu, 0)}</div><div class="res-lbl">Wall Gain BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.glassBtu, 0)}</div><div class="res-lbl">Glass Gain BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.roofBtu, 0)}</div><div class="res-lbl">Roof Gain BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.peopleSens + c.peopleLat, 0)}</div><div class="res-lbl">People BTU/hr (S+L)</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.lightBtu, 0)}</div><div class="res-lbl">Lighting BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.equipBtu, 0)}</div><div class="res-lbl">Equipment BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.faBtu, 0)}</div><div class="res-lbl">FA Sensible BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.raBtu, 0)}</div><div class="res-lbl">RA Gain BTU/hr</div></div>
+      <!-- Heat Gain Breakdown -->
+      <div class="mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Heat Gain Breakdown</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:11px;">
+          ${buildBreakdown(c)}
+        </div>
       </div>
+    </div>
+
+    <!-- Notes -->
+    <div>
+      <label class="lbl">Notes / Remarks</label>
+      <textarea class="inp" rows="2" placeholder="e.g. North-facing corner office, 24×7 operation, server room adjacent..."
+        oninput="setField('${rid}','notes',this.value)">${esc(r.notes||'')}</textarea>
     </div>
   </div>`;
 
-  return `<div class="card mb-4 overflow-hidden">${hdr}${body}</div>`;
+  return `<div class="room-card">${hdr}<div style="background:#fdfdfe;">${body}</div></div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -942,39 +1026,45 @@ function renderSummary() {
 
   tbody.innerHTML = rooms.map((r, i) => {
     const c = calcs[i];
+    const sel = +r.selectedTR || 0;
+    const trStyle = sel === 0 ? 'color:#64748b;'
+      : sel >= c.tonnage ? 'color:#15803d;font-weight:700;'
+      : sel >= c.tonnage * 0.9 ? 'color:#d97706;font-weight:700;'
+      : 'color:#dc2626;font-weight:700;';
+    const trWarning = sel > 0 && sel < c.tonnage ? ' ⚠' : '';
     return `<tr>
-      <td class="text-slate-500">${i+1}</td>
-      <td class="font-medium text-slate-200">${esc(r.name || `Room ${i+1}`)}</td>
+      <td style="color:#94a3b8;">${i+1}</td>
+      <td style="font-weight:600;color:#1e293b;">${esc(r.name || `Room ${i+1}`)}</td>
       <td>${(+r.area||0).toLocaleString()}</td>
       <td>${+r.occupancy||0}</td>
-      <td class="text-emerald-400">${n(c.freshAir, 0)}</td>
+      <td style="color:#15803d;font-weight:600;">${n(c.freshAir, 0)}</td>
       <td>${n(c.lightingLoad, 0)}</td>
       <td>${+r.equipmentKw||0}</td>
       <td>${n(c.ershTotal, 0)}</td>
       <td>${n(c.erlhTotal, 0)}</td>
       <td>${n(c.gth, 0)}</td>
-      <td class="font-bold text-cyan-400">${n(c.tonnage)}</td>
+      <td style="font-weight:700;color:#0369a1;">${n(c.tonnage)}</td>
       <td>${n(c.ershf, 4)}</td>
       <td>${c.adp}</td>
       <td>${n(c.dehCfm, 0)}</td>
-      <td class="font-bold text-amber-400">${+r.selectedTR||0}</td>
-      <td class="text-slate-400">${esc(r.idiuType||'—')}</td>
+      <td style="${trStyle}">${sel || '—'}${trWarning}</td>
+      <td style="color:#64748b;">${esc(r.idiuType||'—')}</td>
     </tr>`;
   }).join('');
 
   tfoot.innerHTML = `<tr>
-    <td colspan="2" class="text-left">TOTAL</td>
+    <td colspan="2" style="text-align:left;">TOTAL</td>
     <td>${totArea.toLocaleString()}</td>
     <td>${totOcc}</td>
-    <td class="text-emerald-400">${n(totFA, 0)}</td>
+    <td style="color:#15803d;">${n(totFA, 0)}</td>
     <td>${n(totLt, 0)}</td>
     <td>${n(totEq, 1)}</td>
     <td>${n(totERSH, 0)}</td>
     <td>${n(totERLH, 0)}</td>
     <td>${n(totGTH, 0)}</td>
-    <td class="text-cyan-400">${n(totTR)}</td>
+    <td style="color:#0369a1;">${n(totTR)}</td>
     <td colspan="3"></td>
-    <td class="text-amber-400">${totSTR}</td>
+    <td style="color:#d97706;">${totSTR}</td>
     <td></td>
   </tr>`;
 }
@@ -1130,6 +1220,9 @@ function syncProjectInputs() {
   v('inp-customer',   STATE.project.customer);
   v('inp-project',    STATE.project.name);
   v('inp-estimatedby',STATE.project.estimatedBy);
+  v('inp-location',   STATE.project.location);
+  v('inp-date',       STATE.project.date);
+  v('inp-ref',        STATE.project.ref);
   v('kL',   STATE.kitchen.L);
   v('kW',   STATE.kitchen.W);
   v('kH',   STATE.kitchen.H);
@@ -1473,6 +1566,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   } catch(e) { /* ignore */ }
+  // Set today's date in date field
+  const dateEl = document.getElementById('inp-date');
+  if (dateEl && !STATE.project.date) {
+    dateEl.value = new Date().toISOString().split('T')[0];
+    STATE.project.date = dateEl.value;
+  }
   render();
 });
 </script>
