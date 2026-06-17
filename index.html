@@ -1451,6 +1451,13 @@ function loadSheetJS() {
 
 function exportCSVFallback() {
   const p = STATE.project;
+  const allCalcs = STATE.rooms.map(r => calcRoom(r));
+  const totCFM = allCalcs.reduce((s,c) => s + c.dehCfm, 0);
+  const totTR  = allCalcs.reduce((s,c) => s + c.tonnage, 0);
+  const kr = calcKitchen(STATE.kitchen);
+  const cc = calcCHW(STATE.chw);
+  const ahuTotHP = calcFanHP(totCFM, STATE.ahu.sp||1.5, STATE.ahu.fanEff||0.65, STATE.ahu.motorEff||0.90);
+
   const rows = [
     ['HVAC Heat Load Summary'],
     [`Customer: ${p.customer||'—'}`, `Project: ${p.name||'—'}`, `Engineer: ${p.estimatedBy||'—'}`],
@@ -1459,12 +1466,37 @@ function exportCSVFallback() {
      'GTH (BTU/hr)','Calc TR','SHF','Dehum CFM','IDU Type','Sel TR'],
   ];
   STATE.rooms.forEach((r, i) => {
-    const c = calcRoom(r);
+    const c = allCalcs[i];
     rows.push([i+1, r.name||`Room ${i+1}`, +r.area||0, +r.occupancy||0,
       c.freshAir.toFixed(0), c.ershTotal.toFixed(0), c.erlhTotal.toFixed(0),
       c.gth.toFixed(0), c.tonnage.toFixed(2), c.ershf.toFixed(4),
       c.dehCfm.toFixed(0), r.idiuType, +r.selectedTR||0]);
   });
+
+  rows.push([]);
+  rows.push(['KITCHEN VENTILATION']);
+  rows.push(['Exhaust CFM (Max)', kr.exhaust.toFixed(0)]);
+  rows.push(['Total Makeup Air CFM', kr.makeup.toFixed(0)]);
+  rows.push(['External Tempered Makeup CFM', kr.external.toFixed(0)]);
+  rows.push(['Internal from AC CFM', kr.internal.toFixed(0)]);
+
+  rows.push([]);
+  rows.push(['AHU SCHEDULE']);
+  rows.push(['Tag','Area Served','Supply CFM','Cooling Tons','Static Pr. (inWG)','Fan HP','Motor HP','Filter Type']);
+  STATE.ahu.rows.forEach(row => {
+    rows.push([row.tag, row.area, +row.cfm||0, +row.tons||0, +row.sp||0,
+      +row.fanHP||0, +row.motorHP||0, row.filterType||'']);
+  });
+  rows.push(['TOTAL','', +totCFM.toFixed(0), +totTR.toFixed(2), '', +ahuTotHP.toFixed(2)]);
+
+  rows.push([]);
+  rows.push(['CHW SYSTEM']);
+  rows.push(['Total Plant Load (TR)', cc.totTR.toFixed(2)]);
+  rows.push(['CHW Flow (LPS)', cc.flowLPS.toFixed(2)]);
+  rows.push(['CHW Flow (GPM)', cc.flowGPM.toFixed(1)]);
+  rows.push(['Pump Power (kW)', cc.pumpKW.toFixed(2)]);
+  rows.push(['Number of Chillers', cc.numChillers]);
+
   const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
   const a = document.createElement('a');
