@@ -5,97 +5,135 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>HVAC Heat Load Calculator</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.full.min.js"></script>
+<!-- SheetJS loaded on-demand in exportExcel() -->
 <style>
-  :root { --cyan: #0e7490; }
-  body { font-family: 'Courier New', monospace; background: #020617; color: #e2e8f0; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  :root {
+    --primary: #0369a1;
+    --primary-light: #0284c7;
+    --primary-bg: #e0f2fe;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --border: #e2e8f0;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --text-light: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
 
   /* Tooltip */
   [data-tip] { position: relative; cursor: help; }
   [data-tip]:hover::after {
     content: attr(data-tip);
     position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
-    background: #1e293b; color: #94a3b8; font-size: 11px; padding: 4px 8px;
+    background: #1e293b; color: #e2e8f0; font-size: 11px; padding: 4px 8px;
     border-radius: 4px; border: 1px solid #334155; white-space: nowrap;
     z-index: 9999; pointer-events: none; min-width: 160px; text-align: center;
   }
 
-  /* Input styles */
+  /* Inputs */
   .inp {
-    width: 100%; background: #1e293b; border: 1px solid #475569;
-    border-radius: 4px; padding: 4px 8px; font-size: 13px; color: #cffafe;
-    outline: none; transition: border-color 0.15s;
+    width: 100%; background: #f8fafc; border: 1px solid #cbd5e1;
+    border-radius: 6px; padding: 6px 10px; font-size: 13px; color: var(--text);
+    outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
   }
-  .inp:focus { border-color: #0e7490; box-shadow: 0 0 0 1px rgba(14,116,144,0.3); }
+  .inp:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(3,105,161,0.12); background: #fff; }
   .inp-sm { padding: 3px 6px; font-size: 12px; }
-
   select.inp { cursor: pointer; }
 
-  /* Card */
-  .card { background: #0f172a; border: 1px solid #334155; border-radius: 12px; }
-  .card-inner { background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 8px; }
+  /* Cards */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .card-inner { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; }
 
-  /* Badge */
-  .badge-cyan  { background: rgba(8,145,178,0.15); color: #22d3ee; border: 1px solid rgba(8,145,178,0.3); }
-  .badge-em    { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
-  .badge-amb   { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
-  .badge-pur   { background: rgba(167,139,250,0.15); color: #c4b5fd; border: 1px solid rgba(167,139,250,0.3); }
+  /* Badges */
+  .badge-cyan  { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+  .badge-em    { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+  .badge-amb   { background: #fef9c3; color: #a16207; border: 1px solid #fde047; }
+  .badge-pur   { background: #f3e8ff; color: #7c3aed; border: 1px solid #e9d5ff; }
 
-  /* Tab */
-  .tab-btn { padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
-  .tab-btn.active { background: #0e7490; color: #fff; }
-  .tab-btn:not(.active) { background: #1e293b; color: #94a3b8; }
-  .tab-btn:not(.active):hover { color: #e2e8f0; }
+  /* Tabs */
+  .tab-btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; font-family: inherit; }
+  .tab-btn.active { background: var(--primary); color: #fff; box-shadow: 0 2px 6px rgba(3,105,161,0.3); }
+  .tab-btn:not(.active) { background: transparent; color: var(--text-muted); }
+  .tab-btn:not(.active):hover { background: #e2e8f0; color: var(--text); }
 
   /* Buttons */
-  .btn { border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 14px; transition: all 0.15s; }
-  .btn-cyan { background: #0e7490; color: #fff; }
-  .btn-cyan:hover { background: #0891b2; }
-  .btn-slate { background: #334155; color: #cbd5e1; }
-  .btn-slate:hover { background: #475569; }
-  .btn-em   { background: #059669; color: #fff; }
+  .btn { border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; padding: 7px 14px; transition: all 0.15s; font-family: inherit; }
+  .btn-cyan { background: var(--primary); color: #fff; }
+  .btn-cyan:hover { background: var(--primary-light); }
+  .btn-slate { background: #f1f5f9; color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-slate:hover { background: #e2e8f0; color: var(--text); }
+  .btn-em   { background: var(--success); color: #fff; }
   .btn-em:hover { background: #10b981; }
-  .btn-red  { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
-  .btn-red:hover { background: rgba(239,68,68,0.25); }
+  .btn-red  { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+  .btn-red:hover { background: #fecaca; }
+  .btn-amber { background: #fef3c7; color: #d97706; border: 1px solid #fde68a; }
+  .btn-amber:hover { background: #fde68a; }
 
-  /* Label */
-  .lbl { display: block; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+  /* Labels */
+  .lbl { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
 
   /* Section header */
-  .sec-hdr { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid #334155; padding-bottom: 4px; margin-bottom: 8px; }
+  .sec-hdr { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid var(--primary-bg); padding-bottom: 6px; margin-bottom: 12px; }
 
   /* Result box */
   .res-box { text-align: center; }
   .res-val { font-size: 22px; font-weight: 700; }
-  .res-lbl { font-size: 10px; color: #64748b; margin-top: 1px; }
+  .res-lbl { font-size: 10px; color: var(--text-light); margin-top: 2px; letter-spacing: 0.03em; }
 
   /* Table */
   .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .tbl th { background: #1e293b; color: #64748b; padding: 6px 10px; text-align: right; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+  .tbl th { background: #f8fafc; color: var(--text-muted); padding: 8px 10px; text-align: right; font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; border-bottom: 2px solid var(--border); }
   .tbl th:first-child { text-align: left; }
-  .tbl td { padding: 5px 10px; text-align: right; border-top: 1px solid rgba(51,65,85,0.5); }
+  .tbl td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #f1f5f9; color: var(--text); }
   .tbl td:first-child { text-align: left; }
-  .tbl tbody tr:hover { background: rgba(30,41,59,0.4); }
-  .tbl tfoot tr { border-top: 2px solid #0e7490; background: rgba(30,41,59,0.8); font-weight: 700; }
+  .tbl tbody tr:hover { background: #f0f9ff; }
+  .tbl tfoot tr { border-top: 2px solid var(--primary); background: var(--primary-bg); font-weight: 700; }
 
-  /* AHU schedule */
-  .ahu-inp { background: #0f172a; border: 1px solid #334155; color: #cffafe; padding: 3px 6px; font-size: 11px; width: 100%; border-radius: 3px; }
+  /* Nav */
+  #top-nav { background: #fff; border-bottom: 1px solid var(--border); box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
 
-  /* Print styles */
+  /* AHU table inputs */
+  .ahu-inp { background: #f8fafc; border: 1px solid #cbd5e1; color: var(--text); padding: 3px 6px; font-size: 11px; width: 100%; border-radius: 4px; font-family: inherit; }
+  .ahu-inp:focus { border-color: var(--primary); outline: none; }
+
+  /* Room card */
+  .room-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; transition: box-shadow 0.15s; }
+  .room-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .room-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; user-select: none; background: #fff; border-bottom: 1px solid transparent; transition: background 0.15s; }
+  .room-header:hover { background: #f8fafc; }
+  .room-header.open { border-bottom-color: var(--border); }
+  .room-body { padding: 16px; background: #fdfdfe; }
+
+  /* TR adequacy badge */
+  .tr-ok    { background: #dcfce7; color: #15803d; border: 1px solid #86efac; border-radius: 20px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+  .tr-warn  { background: #fef9c3; color: #a16207; border: 1px solid #fde047; border-radius: 20px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+  .tr-under { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 20px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+
+  /* Load bar */
+  .load-bar-wrap { background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden; margin-top: 3px; }
+  .load-bar { height: 100%; border-radius: 4px; transition: width 0.3s; }
+
+  /* Print */
   @media print {
     body { background: #fff !important; color: #000 !important; font-family: Arial, sans-serif !important; }
     #top-nav, .no-print, .btn, button { display: none !important; }
-    .card, .card-inner { background: #fff !important; border: 1px solid #ccc !important; }
+    .card, .card-inner, .room-card { background: #fff !important; border: 1px solid #ccc !important; box-shadow: none !important; }
     .tab-pane { display: block !important; page-break-before: always; }
     .tab-pane:first-child { page-break-before: auto; }
     .tbl th { background: #e5e7eb !important; color: #374151 !important; }
-    .tbl td { color: #374151 !important; }
+    .tbl tfoot tr { background: #dbeafe !important; }
     .print-header { display: block !important; }
     * { color-adjust: exact; -webkit-print-color-adjust: exact; }
-    .res-val { color: #000 !important; }
     .lbl { color: #374151 !important; }
     .sec-hdr { color: #374151 !important; border-color: #ccc !important; }
     .inp { background: #f9fafb !important; border: 1px solid #d1d5db !important; color: #111 !important; }
+    .room-header { border-bottom: 1px solid #ccc !important; }
   }
   .print-header { display: none; }
 </style>
@@ -103,21 +141,21 @@
 <body class="min-h-screen">
 
 <!-- TOP NAV -->
-<div id="top-nav" class="border-b border-slate-800 sticky top-0 z-30" style="background:rgba(15,23,42,0.95);backdrop-filter:blur(8px);">
+<div id="top-nav" class="sticky top-0 z-30">
   <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
     <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded badge-cyan flex items-center justify-center text-cyan-400 text-sm font-bold">❄</div>
+      <div style="background:#e0f2fe;border:1px solid #bae6fd;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;"><span style="color:#0369a1;font-size:18px;">❄</span></div>
       <div>
-        <div class="font-bold text-sm tracking-wider text-cyan-300">HVAC HEAT LOAD CALCULATOR</div>
-        <div id="nav-project-name" class="text-xs text-slate-500">ASHRAE / Manual J Method</div>
+        <div class="font-bold text-sm tracking-wider text-sky-700">HVAC HEAT LOAD CALCULATOR</div>
+        <div id="nav-project-name" class="text-xs text-slate-400">ASHRAE / Manual J Method</div>
       </div>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
-      <span class="text-xs text-slate-400 hidden md:inline">Total: <span id="nav-tr" class="text-cyan-400 font-bold">0.00 TR</span></span>
-      <span class="text-xs text-slate-400 hidden md:inline">CFM: <span id="nav-cfm" class="text-emerald-400 font-bold">0</span></span>
+      <span class="text-xs text-slate-500 hidden md:inline">Total: <span id="nav-tr" class="text-sky-700 font-bold">0.00 TR</span></span>
+      <span class="text-xs text-slate-500 hidden md:inline">CFM: <span id="nav-cfm" class="text-emerald-600 font-bold">0</span></span>
       <button class="btn btn-slate text-xs" onclick="doSave()">💾 Save</button>
       <button class="btn btn-slate text-xs" onclick="doLoad()">📂 Load</button>
-      <button class="btn btn-em text-xs" onclick="exportExcel()">⬇ Excel</button>
+      <button id="excelBtn" class="btn btn-em text-xs" onclick="exportExcel()">⬇ Excel</button>
       <button class="btn btn-cyan text-xs" onclick="window.print()">🖨 Print</button>
     </div>
   </div>
@@ -143,23 +181,25 @@
 <!-- PROJECT DETAILS (always visible) -->
 <div class="card p-4 mb-5">
   <div class="sec-hdr">Project Details</div>
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+  <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
     <div><label class="lbl">Customer Name</label><input class="inp" type="text" placeholder="e.g. M/s. HDFC BANK" oninput="STATE.project.customer=this.value;render()" id="inp-customer"/></div>
     <div><label class="lbl">Project Name</label><input class="inp" type="text" placeholder="e.g. HDFC MG Road Mumbai" oninput="STATE.project.name=this.value;render()" id="inp-project"/></div>
     <div><label class="lbl">Estimated By</label><input class="inp" type="text" placeholder="Engineer name" oninput="STATE.project.estimatedBy=this.value;render()" id="inp-estimatedby"/></div>
+    <div><label class="lbl">Location</label><input class="inp" type="text" placeholder="e.g. Mumbai, Maharashtra" oninput="STATE.project.location=this.value" id="inp-location"/></div>
+    <div><label class="lbl">Date</label><input class="inp" type="date" oninput="STATE.project.date=this.value" id="inp-date"/></div>
   </div>
   <div class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
     <div class="card-inner p-2 text-xs">
       <div class="text-slate-400 mb-1">OUTSIDE DESIGN</div>
-      <div>DB: <span class="text-amber-400">107.6°F</span> | RH: 36% | WB: 83°F | TH: 46.75</div>
+      <div>DB: <span class="text-orange-600">107.6°F</span> | RH: 36% | WB: 83°F | TH: 46.75</div>
     </div>
     <div class="card-inner p-2 text-xs">
       <div class="text-slate-400 mb-1">INSIDE DESIGN</div>
-      <div>DB: <span class="text-cyan-400">73.4°F</span> | RH: 50% | WB: 61.2°F | TH: 27.2</div>
+      <div>DB: <span class="text-sky-700">73.4°F</span> | RH: 50% | WB: 61.2°F | TH: 27.2</div>
     </div>
     <div class="card-inner p-2 text-xs">
       <div class="text-slate-400 mb-1">PEAK LOAD TIME</div>
-      <div>APRIL @ <span class="text-emerald-400">16:00 HRS</span> | ADP: 54°F</div>
+      <div>APRIL @ <span class="text-emerald-700">16:00 HRS</span> | ADP: 54°F</div>
     </div>
   </div>
 </div>
@@ -169,8 +209,8 @@
 ═══════════════════════════════════════════════════ -->
 <div id="tab-heat-load" class="tab-pane">
   <div id="rooms-container"></div>
-  <button class="w-full mt-2 py-4 rounded-xl text-sm font-semibold text-slate-500 hover:text-cyan-400 transition-colors no-print"
-    style="border:2px dashed #334155;" onmouseenter="this.style.borderColor='rgba(8,145,178,0.5)'" onmouseleave="this.style.borderColor='#334155'"
+  <button class="w-full mt-2 py-4 rounded-xl text-sm font-semibold text-slate-500 hover:text-sky-700 transition-colors no-print"
+    style="border:2px dashed #cbd5e1;" onmouseenter="this.style.borderColor='#0369a1'" onmouseleave="this.style.borderColor='#cbd5e1'"
     onclick="addRoom()">+ Add Room / Space</button>
 </div>
 
@@ -211,16 +251,16 @@
   <div class="card p-5">
     <div class="sec-hdr">Kitchen Ventilation Results</div>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="card-inner p-3 res-box"><div class="res-val text-cyan-400" id="kr-ach">—</div><div class="res-lbl">ACH Method CFM</div></div>
-      <div class="card-inner p-3 res-box"><div class="res-val text-slate-300" id="kr-hood">—</div><div class="res-lbl">Hood Method CFM</div></div>
-      <div class="card-inner p-3 res-box"><div class="res-val text-amber-400" id="kr-exhaust">—</div><div class="res-lbl">Exhaust CFM (Max)</div></div>
-      <div class="card-inner p-3 res-box"><div class="res-val text-emerald-400" id="kr-makeup">—</div><div class="res-lbl">Total Makeup Air CFM (85%)</div></div>
-      <div class="card-inner p-3 res-box"><div class="res-val text-purple-400" id="kr-external">—</div><div class="res-lbl">External Tempered Makeup (70%)</div></div>
-      <div class="card-inner p-3 res-box"><div class="res-val text-slate-300" id="kr-internal">—</div><div class="res-lbl">Internal from AC (15%)</div></div>
-      <div class="card-inner p-3 res-box col-span-2"><div class="res-val text-cyan-400" id="kr-vol">—</div><div class="res-lbl">Kitchen Volume (cu.ft)</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-sky-700" id="kr-ach">—</div><div class="res-lbl">ACH Method CFM</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-slate-600" id="kr-hood">—</div><div class="res-lbl">Hood Method CFM</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-amber-600" id="kr-exhaust">—</div><div class="res-lbl">Exhaust CFM (Max)</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-emerald-600" id="kr-makeup">—</div><div class="res-lbl">Total Makeup Air CFM (85%)</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-purple-600" id="kr-external">—</div><div class="res-lbl">External Tempered Makeup (70%)</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-slate-600" id="kr-internal">—</div><div class="res-lbl">Internal from AC (15%)</div></div>
+      <div class="card-inner p-3 res-box col-span-2"><div class="res-val text-sky-700" id="kr-vol">—</div><div class="res-lbl">Kitchen Volume (cu.ft)</div></div>
     </div>
-    <div class="mt-4 card-inner p-3 text-xs text-slate-400">
-      <div class="font-semibold text-slate-300 mb-1">Formulae Used</div>
+    <div class="mt-4 card-inner p-3 text-xs text-slate-500">
+      <div class="font-semibold text-slate-700 mb-1">Formulae Used</div>
       <div>ACH Method: CFM = (L × W × H × ACH) / 60 | Hood Method: CFM = Hood Length × Rate × No. of Hoods</div>
       <div class="mt-1">Exhaust = MAX(ACH method, Hood method) | Makeup Air = 85% × Exhaust</div>
       <div>External (tempered) = 70% × Exhaust | Internal (from AC) = 15% × Exhaust</div>
@@ -249,9 +289,9 @@
       </div>
     </div>
     <div class="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
-      <div class="card-inner p-3 res-box"><div class="res-val text-cyan-400" id="ahu-total-cfm">—</div><div class="res-lbl">Total Supply CFM (from rooms)</div></div>
-      <div class="card-inner p-3 res-box"><div class="res-val text-amber-400" id="ahu-total-tons">—</div><div class="res-lbl">Total Cooling Tons</div></div>
-      <div class="card-inner p-3 res-box"><div class="res-val text-emerald-400" id="ahu-fan-hp">—</div><div class="res-lbl">Total Fan Motor HP</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-sky-700" id="ahu-total-cfm">—</div><div class="res-lbl">Total Supply CFM (from rooms)</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-amber-600" id="ahu-total-tons">—</div><div class="res-lbl">Total Cooling Tons</div></div>
+      <div class="card-inner p-3 res-box"><div class="res-val text-emerald-600" id="ahu-fan-hp">—</div><div class="res-lbl">Total Fan Motor HP</div></div>
     </div>
     <div class="mt-2 text-xs text-slate-500 card-inner p-2">
       Fan HP = (CFM &times; SP<sub>inWG</sub>) / (6356 &times; Fan_Eff &times; Motor_Eff)
@@ -301,8 +341,8 @@
   <div class="card p-5">
     <div class="sec-hdr">CHW System Results</div>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="chw-results-grid"></div>
-    <div class="mt-4 card-inner p-3 text-xs text-slate-400">
-      <div class="font-semibold text-slate-300 mb-1">Formulae Used</div>
+    <div class="mt-4 card-inner p-3 text-xs text-slate-500">
+      <div class="font-semibold text-slate-700 mb-1">Formulae Used</div>
       <div>CHW Flow (LPS) = Plant kW / (4.19 × ΔT_C) | CHW Flow (GPM) = Tons × 24 / ΔT_F (ΔT_F = 9°F for 5°C ΔT)</div>
       <div class="mt-1">Pump Head (m WC) = Pipe Length × 0.04 m/m × Fittings Factor</div>
       <div>Pump Power (kW) = (Flow_LPS × Head_m × 9.81) / (Pump_Eff × Motor_Eff × 1000)</div>
@@ -318,15 +358,15 @@
 <div id="tab-summary" class="tab-pane" style="display:none;">
   <div class="print-header"><h2 style="font-size:15px;font-weight:700;color:#000;margin-bottom:8px;">Summary Table</h2></div>
   <div class="card overflow-hidden">
-    <div class="p-4 border-b border-slate-700 flex items-center justify-between flex-wrap gap-3">
+    <div class="p-4 border-b border-slate-200 flex items-center justify-between flex-wrap gap-3">
       <div>
-        <div class="font-bold text-slate-200" id="sum-customer">—</div>
-        <div class="text-sm text-slate-400" id="sum-project">—</div>
+        <div class="font-bold text-slate-800" id="sum-customer">—</div>
+        <div class="text-sm text-slate-500" id="sum-project">—</div>
       </div>
       <div class="flex gap-4 text-sm">
-        <span class="text-slate-400">Rooms: <span id="sum-rooms" class="text-cyan-400 font-bold">0</span></span>
-        <span class="text-slate-400">Total TR: <span id="sum-total-tr" class="text-cyan-400 font-bold">0.00</span></span>
-        <span class="text-slate-400">Total CFM: <span id="sum-total-cfm" class="text-emerald-400 font-bold">0</span></span>
+        <span class="text-slate-500">Rooms: <span id="sum-rooms" class="text-sky-700 font-bold">0</span></span>
+        <span class="text-slate-500">Total TR: <span id="sum-total-tr" class="text-sky-700 font-bold">0.00</span></span>
+        <span class="text-slate-500">Total CFM: <span id="sum-total-cfm" class="text-emerald-600 font-bold">0</span></span>
       </div>
     </div>
     <div class="overflow-x-auto">
@@ -345,7 +385,7 @@
       </table>
     </div>
     <!-- Assumptions -->
-    <div class="p-4 border-t border-slate-700">
+    <div class="p-4 border-t border-slate-200">
       <div class="sec-hdr">Design Assumptions</div>
       <ol class="list-decimal list-inside space-y-1 text-xs text-slate-400">
         <li>Inside Condition: 23°C ± 2°F, RH ~50 ± 5% (73.4°F DB, 61.2°F WB)</li>
@@ -395,7 +435,7 @@ const ACH_VALUES = { light: 20, medium: 25, heavy: 30 };
 // STATE
 // ═══════════════════════════════════════════════════════════════════════════
 let STATE = {
-  project: { customer: "", name: "", estimatedBy: "" },
+  project: { customer: "", name: "", estimatedBy: "", location: "", date: "" },
   rooms: [defaultRoom()],
   collapsed: {},
   kitchen: {
@@ -444,7 +484,8 @@ function defaultRoom() {
     floorFactor: 0.4,
     correctionFactor: 13,
     idiuType: "ductable",
-    selectedTR: ""
+    selectedTR: "",
+    notes: ""
   };
 }
 
@@ -564,6 +605,45 @@ function n(v, dec) {
 }
 function pct(v) { return (v * 100).toFixed(1) + "%"; }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escHtml(s) { return esc(s); }
+
+function buildBreakdown(c) {
+  const items = [
+    { label: 'Walls',      val: c.wallBtu,                                              color: '#f97316' },
+    { label: 'Glass',      val: c.glassBtu + c.allGlassBtu,                             color: '#facc15' },
+    { label: 'Roof',       val: c.roofBtu,                                              color: '#ef4444' },
+    { label: 'Partitions', val: c.prtWallBtu + c.prtGlassBtu + c.ceilingBtu + c.floorBtu, color: '#8b5cf6' },
+    { label: 'People',     val: c.peopleSens,                                           color: '#06b6d4' },
+    { label: 'Lighting',   val: c.lightBtu,                                             color: '#eab308' },
+    { label: 'Equipment',  val: c.equipBtu,                                             color: '#64748b' },
+    { label: 'Fresh Air',  val: c.faBtu,                                                color: '#22c55e' },
+  ];
+  const total = items.reduce((s,i) => s + i.val, 0) || 1;
+  return items.map(item => {
+    const pct = Math.round(item.val / total * 100);
+    return `<div>
+      <div style="display:flex;justify-content:space-between;color:#64748b;margin-bottom:2px;">
+        <span>${item.label}</span><span style="font-weight:600;color:#1e293b;">${pct}%</span>
+      </div>
+      <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${item.color};border-radius:4px;transition:width 0.3s;"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function trAdequacy(calcTR, selTR) {
+  if (!selTR || +selTR === 0) return '';
+  const ratio = +selTR / calcTR;
+  if (ratio >= 1.0) return `<span class="tr-ok">✓ ${selTR} TR Selected</span>`;
+  if (ratio >= 0.9) return `<span class="tr-warn">⚠ ${selTR} TR (close)</span>`;
+  return `<span class="tr-under">✗ ${selTR} TR Undersized!</span>`;
+}
+
+function updateRoomField(rid, field, val) {
+  const r = STATE.rooms.find(x => String(x.id) === String(rid));
+  if (r) { r[field] = val; }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDER: ROOMS
@@ -571,6 +651,14 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function renderRooms() {
   const container = document.getElementById('rooms-container');
   if (!container) return;
+  if (STATE.rooms.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:60px 20px;color:#94a3b8;">
+      <div style="font-size:48px;margin-bottom:16px;">🏢</div>
+      <div style="font-size:18px;font-weight:600;color:#64748b;margin-bottom:8px;">No rooms added yet</div>
+      <div style="font-size:14px;margin-bottom:24px;">Add your first space to start the heat load calculation</div>
+    </div>`;
+    return;
+  }
   container.innerHTML = STATE.rooms.map((r, idx) => buildRoomCard(r, idx)).join('');
 }
 
@@ -589,9 +677,11 @@ function buildRoomCard(r, idx) {
     </div>
     <div class="flex items-center gap-4">
       <div class="text-right">
-        <div class="text-lg font-bold text-cyan-400">${n(c.tonnage)} TR</div>
+        <div class="text-lg font-bold text-sky-700">${n(c.tonnage)} TR</div>
         <div class="text-xs text-slate-500">Fresh Air: ${n(c.freshAir, 0)} CFM</div>
+        ${trAdequacy(c.tonnage, r.selectedTR)}
       </div>
+      <button onclick="event.stopPropagation();duplicateRoom('${rid}')" class="btn btn-amber text-xs px-2 py-0.5 no-print" style="padding:2px 8px;" title="Duplicate this room">⧉</button>
       <button onclick="event.stopPropagation();deleteRoom('${rid}')" class="btn btn-red text-xs px-2 py-0.5 no-print" style="padding:2px 8px;">✕</button>
       <span class="text-slate-500 text-sm">${collapsed ? '▶' : '▼'}</span>
     </div>
@@ -722,27 +812,42 @@ function buildRoomCard(r, idx) {
     <!-- Results Panel -->
     <div class="card-inner p-4">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-        <div class="res-box"><div class="res-val text-cyan-400">${n(c.tonnage)}</div><div class="res-lbl">Calculated TR</div></div>
-        <div class="res-box"><div class="res-val text-emerald-400">${n(c.freshAir, 0)}</div><div class="res-lbl">Fresh Air CFM</div></div>
-        <div class="res-box"><div class="res-val text-amber-400">${pct(c.ershf)}</div><div class="res-lbl">ERSHF (SHF)</div></div>
-        <div class="res-box"><div class="res-val text-purple-400">${n(c.dehCfm, 0)}</div><div class="res-lbl">Dehum. CFM</div></div>
+        <div class="res-box"><div class="res-val text-sky-700">${n(c.tonnage)}</div><div class="res-lbl">Calculated TR</div></div>
+        <div class="res-box"><div class="res-val text-emerald-600">${n(c.freshAir, 0)}</div><div class="res-lbl">Fresh Air CFM</div></div>
+        <div class="res-box"><div class="res-val text-amber-600">${pct(c.ershf)}</div><div class="res-lbl">ERSHF (SHF)</div></div>
+        <div class="res-box"><div class="res-val text-purple-600">${n(c.dehCfm, 0)}</div><div class="res-lbl">Dehum. CFM</div></div>
       </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-700">
-        <div class="res-box"><div class="text-lg font-semibold text-slate-300">${n(c.ershTotal, 0)}</div><div class="res-lbl">ERSH (BTU/hr)</div></div>
-        <div class="res-box"><div class="text-lg font-semibold text-slate-300">${n(c.erlhTotal, 0)}</div><div class="res-lbl">ERLH (BTU/hr)</div></div>
-        <div class="res-box"><div class="text-lg font-semibold text-slate-300">${n(c.gth, 0)}</div><div class="res-lbl">Grand Total Heat (BTU/hr)</div></div>
-        <div class="res-box"><div class="text-lg font-semibold text-slate-300">${c.adp}°F</div><div class="res-lbl">ADP</div></div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-200">
+        <div class="res-box"><div class="text-lg font-semibold text-slate-700">${n(c.ershTotal, 0)}</div><div class="res-lbl">ERSH (BTU/hr)</div></div>
+        <div class="res-box"><div class="text-lg font-semibold text-slate-700">${n(c.erlhTotal, 0)}</div><div class="res-lbl">ERLH (BTU/hr)</div></div>
+        <div class="res-box"><div class="text-lg font-semibold text-slate-700">${n(c.gth, 0)}</div><div class="res-lbl">Grand Total Heat (BTU/hr)</div></div>
+        <div class="res-box"><div class="text-lg font-semibold text-slate-700">${c.adp}°F</div><div class="res-lbl">ADP</div></div>
       </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-700 mt-3 text-xs">
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.wallBtu, 0)}</div><div class="res-lbl">Wall Gain BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.glassBtu, 0)}</div><div class="res-lbl">Glass Gain BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.roofBtu, 0)}</div><div class="res-lbl">Roof Gain BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.peopleSens + c.peopleLat, 0)}</div><div class="res-lbl">People BTU/hr (S+L)</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.lightBtu, 0)}</div><div class="res-lbl">Lighting BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.equipBtu, 0)}</div><div class="res-lbl">Equipment BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.faBtu, 0)}</div><div class="res-lbl">FA Sensible BTU/hr</div></div>
-        <div class="res-box"><div class="font-medium text-slate-400">${n(c.raBtu, 0)}</div><div class="res-lbl">RA Gain BTU/hr</div></div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-200 mt-3 text-xs">
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.wallBtu, 0)}</div><div class="res-lbl">Wall Gain BTU/hr</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.glassBtu, 0)}</div><div class="res-lbl">Glass Gain BTU/hr</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.roofBtu, 0)}</div><div class="res-lbl">Roof Gain BTU/hr</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.peopleSens + c.peopleLat, 0)}</div><div class="res-lbl">People BTU/hr (S+L)</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.lightBtu, 0)}</div><div class="res-lbl">Lighting BTU/hr</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.equipBtu, 0)}</div><div class="res-lbl">Equipment BTU/hr</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.faBtu, 0)}</div><div class="res-lbl">FA Sensible BTU/hr</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.raBtu, 0)}</div><div class="res-lbl">RA Gain BTU/hr</div></div>
       </div>
+    </div>
+
+    <!-- Heat Gain Breakdown -->
+    <div class="mt-3 card-inner p-3">
+      <div class="sec-hdr" style="margin-bottom:8px;">Heat Gain Breakdown</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+        ${buildBreakdown(c)}
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="mt-3">
+      <label class="lbl">Notes / Remarks</label>
+      <textarea class="inp" rows="2" placeholder="e.g. North facing corner office, 24x7 operation..."
+        oninput="updateRoomField('${rid}','notes',this.value)" style="resize:vertical;min-height:48px;">${escHtml(r.notes||'')}</textarea>
     </div>
   </div>`;
 
@@ -827,7 +932,7 @@ function renderAHUTable() {
       <td><input class="ahu-inp" type="number" value="${row.cfm||0}" oninput="STATE.ahu.rows[${i}].cfm=this.value;recalcAHURow(${i})"/></td>
       <td><input class="ahu-inp" type="number" value="${row.tons||0}" oninput="STATE.ahu.rows[${i}].tons=this.value"/></td>
       <td><input class="ahu-inp" type="number" value="${row.sp||STATE.ahu.sp||1.5}" oninput="STATE.ahu.rows[${i}].sp=this.value;recalcAHURow(${i})"/></td>
-      <td class="text-emerald-400 font-semibold">${row.fanHP||'—'}</td>
+      <td class="text-emerald-600 font-semibold">${row.fanHP||'—'}</td>
       <td><input class="ahu-inp" type="number" value="${row.motorHP||0}" oninput="STATE.ahu.rows[${i}].motorHP=this.value"/></td>
       <td><input class="ahu-inp" value="${esc(row.filterType||STATE.ahu.filterType||'G4+F7')}" oninput="STATE.ahu.rows[${i}].filterType=this.value"/></td>
       <td class="no-print"><button class="btn btn-red text-xs" style="padding:2px 8px;" onclick="deleteAHURow(${i})">✕</button></td>
@@ -836,10 +941,10 @@ function renderAHUTable() {
 
   tfoot.innerHTML = `<tr>
     <td colspan="2" class="text-left">TOTAL</td>
-    <td class="text-cyan-400">${n(totalCFM, 0)}</td>
-    <td class="text-amber-400">${n(totalTons, 2)}</td>
+    <td class="text-sky-700">${n(totalCFM, 0)}</td>
+    <td class="text-amber-600">${n(totalTons, 2)}</td>
     <td></td>
-    <td class="text-emerald-400">${n(totalHP, 2)}</td>
+    <td class="text-emerald-600">${n(totalHP, 2)}</td>
     <td colspan="3"></td>
   </tr>`;
 }
@@ -886,20 +991,20 @@ function renderCHW() {
   if (!grid) return;
 
   const boxes = [
-    { val: n(c.totTR, 2),              lbl: 'Total Plant Load (TR)',        cls: 'text-cyan-400' },
-    { val: n(c.kW, 1),                 lbl: 'Total Plant Load (kW)',        cls: 'text-cyan-400' },
-    { val: n(c.dt_c, 1) + '°C',       lbl: 'ΔT Chilled Water',            cls: 'text-slate-300' },
-    { val: n(c.flowLPS, 2),            lbl: 'CHW Flow (LPS)',               cls: 'text-emerald-400' },
-    { val: n(c.flowGPM, 1),            lbl: 'CHW Flow (GPM)',               cls: 'text-emerald-400' },
-    { val: n(c.headM, 2) + ' m',       lbl: 'Pump Head (m WC)',             cls: 'text-amber-400' },
-    { val: n(c.pumpKW, 2),             lbl: 'Pump Power (kW)',              cls: 'text-amber-400' },
-    { val: n(c.ctFlow, 2),             lbl: 'Cooling Tower Flow (LPS)',     cls: 'text-slate-300' },
-    { val: n(c.ctGPM, 1),              lbl: 'Cooling Tower Flow (GPM)',     cls: 'text-slate-300' },
-    { val: c.numChillers,              lbl: 'No. of Chillers',              cls: 'text-purple-400' },
-    { val: n(c.cop, 1),                lbl: 'Chiller COP Target',           cls: 'text-purple-400' },
-    { val: n(c.eer, 2),                lbl: 'EER (BTU/W)',                  cls: 'text-slate-300' },
-    { val: n(c.compressorKW, 1),       lbl: 'Compressor kW (plant)',        cls: 'text-slate-300' },
-    { val: n(c.totTR > 0 ? c.kW / c.totTR : 0, 3) + ' kW/TR', lbl: 'Plant kW/TR', cls: 'text-slate-300' },
+    { val: n(c.totTR, 2),              lbl: 'Total Plant Load (TR)',        cls: 'text-sky-700' },
+    { val: n(c.kW, 1),                 lbl: 'Total Plant Load (kW)',        cls: 'text-sky-700' },
+    { val: n(c.dt_c, 1) + '°C',       lbl: 'ΔT Chilled Water',            cls: 'text-slate-600' },
+    { val: n(c.flowLPS, 2),            lbl: 'CHW Flow (LPS)',               cls: 'text-emerald-600' },
+    { val: n(c.flowGPM, 1),            lbl: 'CHW Flow (GPM)',               cls: 'text-emerald-600' },
+    { val: n(c.headM, 2) + ' m',       lbl: 'Pump Head (m WC)',             cls: 'text-amber-600' },
+    { val: n(c.pumpKW, 2),             lbl: 'Pump Power (kW)',              cls: 'text-amber-600' },
+    { val: n(c.ctFlow, 2),             lbl: 'Cooling Tower Flow (LPS)',     cls: 'text-slate-600' },
+    { val: n(c.ctGPM, 1),              lbl: 'Cooling Tower Flow (GPM)',     cls: 'text-slate-600' },
+    { val: c.numChillers,              lbl: 'No. of Chillers',              cls: 'text-purple-600' },
+    { val: n(c.cop, 1),                lbl: 'Chiller COP Target',           cls: 'text-purple-600' },
+    { val: n(c.eer, 2),                lbl: 'EER (BTU/W)',                  cls: 'text-slate-600' },
+    { val: n(c.compressorKW, 1),       lbl: 'Compressor kW (plant)',        cls: 'text-slate-600' },
+    { val: n(c.totTR > 0 ? c.kW / c.totTR : 0, 3) + ' kW/TR', lbl: 'Plant kW/TR', cls: 'text-slate-600' },
   ];
 
   grid.innerHTML = boxes.map(b => `
@@ -943,8 +1048,8 @@ function renderSummary() {
   tbody.innerHTML = rooms.map((r, i) => {
     const c = calcs[i];
     return `<tr>
-      <td class="text-slate-500">${i+1}</td>
-      <td class="font-medium text-slate-200">${esc(r.name || `Room ${i+1}`)}</td>
+      <td class="text-slate-400">${i+1}</td>
+      <td class="font-medium text-slate-800">${esc(r.name || `Room ${i+1}`)}</td>
       <td>${(+r.area||0).toLocaleString()}</td>
       <td>${+r.occupancy||0}</td>
       <td class="text-emerald-400">${n(c.freshAir, 0)}</td>
@@ -953,12 +1058,12 @@ function renderSummary() {
       <td>${n(c.ershTotal, 0)}</td>
       <td>${n(c.erlhTotal, 0)}</td>
       <td>${n(c.gth, 0)}</td>
-      <td class="font-bold text-cyan-400">${n(c.tonnage)}</td>
+      <td class="font-bold text-sky-700">${n(c.tonnage)}</td>
       <td>${n(c.ershf, 4)}</td>
       <td>${c.adp}</td>
       <td>${n(c.dehCfm, 0)}</td>
-      <td class="font-bold text-amber-400">${+r.selectedTR||0}</td>
-      <td class="text-slate-400">${esc(r.idiuType||'—')}</td>
+      <td class="font-bold ${+r.selectedTR > 0 && +r.selectedTR < c.tonnage ? 'text-red-600' : +r.selectedTR >= c.tonnage ? 'text-emerald-600' : 'text-slate-400'}">${+r.selectedTR||0}</td>
+      <td class="text-slate-500">${esc(r.idiuType||'—')}</td>
     </tr>`;
   }).join('');
 
@@ -966,15 +1071,15 @@ function renderSummary() {
     <td colspan="2" class="text-left">TOTAL</td>
     <td>${totArea.toLocaleString()}</td>
     <td>${totOcc}</td>
-    <td class="text-emerald-400">${n(totFA, 0)}</td>
+    <td class="text-emerald-600">${n(totFA, 0)}</td>
     <td>${n(totLt, 0)}</td>
     <td>${n(totEq, 1)}</td>
     <td>${n(totERSH, 0)}</td>
     <td>${n(totERLH, 0)}</td>
     <td>${n(totGTH, 0)}</td>
-    <td class="text-cyan-400">${n(totTR)}</td>
+    <td class="text-sky-700">${n(totTR)}</td>
     <td colspan="3"></td>
-    <td class="text-amber-400">${totSTR}</td>
+    <td class="text-amber-600">${totSTR}</td>
     <td></td>
   </tr>`;
 }
@@ -1048,6 +1153,16 @@ function addRoom() {
   const r = defaultRoom();
   STATE.rooms.push(r);
   STATE.ahu.rows = [];
+  render();
+}
+
+function duplicateRoom(id) {
+  const idx = STATE.rooms.findIndex(r => String(r.id) === String(id));
+  if (idx === -1) return;
+  const copy = JSON.parse(JSON.stringify(STATE.rooms[idx]));
+  copy.id = Date.now() + Math.random();
+  copy.name = (copy.name || 'Room') + ' (Copy)';
+  STATE.rooms.splice(idx + 1, 0, copy);
   render();
 }
 
@@ -1130,6 +1245,8 @@ function syncProjectInputs() {
   v('inp-customer',   STATE.project.customer);
   v('inp-project',    STATE.project.name);
   v('inp-estimatedby',STATE.project.estimatedBy);
+  v('inp-location',   STATE.project.location);
+  v('inp-date',       STATE.project.date);
   v('kL',   STATE.kitchen.L);
   v('kW',   STATE.kitchen.W);
   v('kH',   STATE.kitchen.H);
@@ -1171,13 +1288,66 @@ setInterval(() => {
 }, 30000);
 
 // ═══════════════════════════════════════════════════════════════════════════
-// EXCEL EXPORT (using SheetJS)
+// EXCEL EXPORT (using SheetJS — loaded dynamically with CDN fallbacks)
 // ═══════════════════════════════════════════════════════════════════════════
-function exportExcel() {
-  if (typeof XLSX === 'undefined') {
-    alert('SheetJS library not loaded. Check your internet connection and try again.');
+function loadSheetJS() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  const cdns = [
+    'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.3/xlsx.full.min.js',
+  ];
+  function tryNext(i) {
+    if (i >= cdns.length) return Promise.reject(new Error('All CDNs failed'));
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = cdns[i];
+      s.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('Loaded but XLSX undefined'));
+      s.onerror = () => { document.head.removeChild(s); reject(); };
+      document.head.appendChild(s);
+    }).catch(() => tryNext(i + 1));
+  }
+  return tryNext(0);
+}
+
+function exportCSVFallback() {
+  const p = STATE.project;
+  const rows = [
+    ['HVAC Heat Load Summary'],
+    [`Customer: ${p.customer||'—'}`, `Project: ${p.name||'—'}`, `Engineer: ${p.estimatedBy||'—'}`],
+    [],
+    ['#','Space','Area (sqft)','Occ','Fresh Air CFM','ERSH (BTU/hr)','ERLH (BTU/hr)',
+     'GTH (BTU/hr)','Calc TR','SHF','Dehum CFM','IDU Type','Sel TR'],
+  ];
+  STATE.rooms.forEach((r, i) => {
+    const c = calcRoom(r);
+    rows.push([i+1, r.name||`Room ${i+1}`, +r.area||0, +r.occupancy||0,
+      c.freshAir.toFixed(0), c.ershTotal.toFixed(0), c.erlhTotal.toFixed(0),
+      c.gth.toFixed(0), c.tonnage.toFixed(2), c.ershf.toFixed(4),
+      c.dehCfm.toFixed(0), r.idiuType, +r.selectedTR||0]);
+  });
+  const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `HeatLoad_${(p.name||'Project').replace(/[^\w\-]/g,'_')}.csv`;
+  a.click();
+}
+
+async function exportExcel() {
+  const btn = document.getElementById('excelBtn');
+  if (btn) { btn.textContent = '⏳ Loading...'; btn.disabled = true; }
+  let XLSX;
+  try {
+    XLSX = await loadSheetJS();
+  } catch(e) {
+    if (btn) { btn.textContent = '⬇ Excel'; btn.disabled = false; }
+    if (confirm('Excel library could not be loaded (no internet?).\n\nDownload as CSV instead? (opens in Excel)')) {
+      exportCSVFallback();
+    }
     return;
   }
+  if (btn) { btn.textContent = '⬇ Excel'; btn.disabled = false; }
   const wb   = XLSX.utils.book_new();
   const p    = STATE.project;
   const rooms = STATE.rooms;
@@ -1393,7 +1563,11 @@ function exportExcel() {
 
   // Write file
   const filename = `HeatLoad_${(p.name||'Project').replace(/[^\w\-]/g,'_')}.xlsx`;
-  XLSX.writeFile(wb, filename);
+  try {
+    XLSX.writeFile(wb, filename);
+  } catch(e) {
+    alert('Export failed: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1416,6 +1590,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   } catch(e) { /* ignore */ }
+  const dateEl = document.getElementById('inp-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
   render();
 });
 </script>
