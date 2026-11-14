@@ -260,6 +260,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   <div class="max-w-7xl mx-auto px-4 pb-2 flex gap-2 flex-wrap">
     <button class="tab-btn active" data-tab="heat-load" onclick="switchTab('heat-load',this)">Heat Load</button>
     <button class="tab-btn" data-tab="kitchen" onclick="switchTab('kitchen',this)">Kitchen Vent.</button>
+    <button class="tab-btn" data-tab="toilet" onclick="switchTab('toilet',this)">Toilet / Washroom</button>
     <button class="tab-btn" data-tab="ahu" onclick="switchTab('ahu',this)">AHU Design</button>
     <button class="tab-btn" data-tab="chw" onclick="switchTab('chw',this)">CHW System</button>
     <button class="tab-btn" data-tab="summary" onclick="switchTab('summary',this)">Summary</button>
@@ -366,6 +367,35 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 </div>
 
 <!-- ═══════════════════════════════════════════════════
+     TAB: TOILET / WASHROOM EXHAUST & PRESSURE
+═══════════════════════════════════════════════════ -->
+<div id="tab-toilet" class="tab-pane" style="display:none;">
+  <div class="print-header"><h2 style="font-size:15px;font-weight:700;color:#000;margin-bottom:8px;">Toilet / Washroom — Exhaust, Pressure &amp; Heat Load</h2></div>
+  <div class="card p-5 mb-4">
+    <div class="sec-hdr">Toilet Exhaust System Parameters</div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div><label class="lbl" data-tip="External static pressure of the toilet exhaust fan (ductwork + grilles + louvre)">Exhaust Fan SP (inWG)</label><input class="inp" type="number" step="0.05" value="0.75" oninput="STATE.toiletSys.sp=+this.value;renderToilets()" id="tsys-sp"/></div>
+      <div><label class="lbl" data-tip="Exhaust fan total efficiency (typical inline/axial 0.50–0.60)">Fan Efficiency</label><input class="inp" type="number" step="0.01" value="0.55" oninput="STATE.toiletSys.fanEff=+this.value;renderToilets()" id="tsys-faneff"/></div>
+      <div><label class="lbl" data-tip="Motor efficiency (typical 0.85)">Motor Efficiency</label><input class="inp" type="number" step="0.01" value="0.85" oninput="STATE.toiletSys.motorEff=+this.value;renderToilets()" id="tsys-motoreff"/></div>
+      <div><label class="lbl" data-tip="Fan selection margin over calculated exhaust CFM (10% typical for duct leakage)">Fan Margin (%)</label><input class="inp" type="number" step="1" value="10" oninput="STATE.toiletSys.margin=+this.value;renderToilets()" id="tsys-margin"/></div>
+    </div>
+    <div class="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3" id="toilet-totals"></div>
+  </div>
+  <div id="toilets-container"></div>
+  <button class="w-full mt-2 py-4 rounded-xl text-sm font-semibold text-slate-500 hover:text-sky-700 transition-colors no-print"
+    style="border:2px dashed #cbd5e1;" onmouseenter="this.style.borderColor='#0369a1'" onmouseleave="this.style.borderColor='#cbd5e1'"
+    onclick="addToilet()">+ Add Toilet / Washroom / Bathroom</button>
+  <div class="card p-4 mt-4 text-xs text-slate-500">
+    <div class="font-semibold text-slate-700 mb-1">Method &amp; Formulae Used</div>
+    <div>Exhaust CFM = MAX of the enabled methods: (1) ACH: L×W×H×ACH/60 &nbsp;|&nbsp; (2) Fixture: (WC+Urinal)×CFM/fixture + Showers×CFM/shower &nbsp;|&nbsp; (3) Area: Floor area × CFM/sq.ft</div>
+    <div class="mt-1">Reference rates: ASHRAE 62.1 / IMC — Public toilet 70 CFM per WC/urinal (continuous), Private toilet 50 CFM (intermittent) / 25 CFM (continuous), Shower 50 CFM (intermittent) / 20 CFM (continuous). NBC 2016 Part 8 — toilets 6–10 ACH (10–15 ACH common in Indian practice).</div>
+    <div class="mt-1"><b>Non-AC toilet:</b> Supply = 0, Transfer air = Exhaust. &nbsp; <b>AC toilet:</b> Supply = Dehum CFM, Exhaust = MAX(code exhaust, Supply × (1 + offset%)), Transfer air = Exhaust − Supply.</div>
+    <div class="mt-1"><b>Make-up air load:</b> every CFM exhausted must be replaced by outdoor air at the serving AHU. If make-up is drawn from an AC area, the load on that AHU = Exhaust CFM treated like fresh air: Sensible = CFM×Δdb×(0.15×1.08), Latent = CFM×Δgr×(0.15×0.67), Outside = CFM×Δh×(4.5×0.85), with the same 10% / 5% / 3% safety factors as rooms.</div>
+    <div class="mt-1"><b>Room pressure (orifice equation):</b> Q = 2610 × A × √ΔP &nbsp;→&nbsp; ΔP (inWG) = (Q<sub>transfer</sub> / (2610 × A<sub>ft²</sub>))², A = door undercuts + transfer grille free area. 1 inWG = 249 Pa. Target: −2.5 Pa minimum (ASHRAE 170), −5 to −10 Pa typical; above ~15 Pa doors become hard to close / whistle → add a transfer grille.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
      TAB: AHU DESIGN
 ═══════════════════════════════════════════════════ -->
 <div id="tab-ahu" class="tab-pane" style="display:none;">
@@ -462,6 +492,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       </div>
       <div class="flex gap-4 text-sm">
         <span class="text-slate-500">Rooms: <span id="sum-rooms" class="text-sky-700 font-bold">0</span></span>
+        <span class="text-slate-500">Toilets: <span id="sum-toilets" class="text-sky-700 font-bold">0</span></span>
         <span class="text-slate-500">Total TR: <span id="sum-total-tr" class="text-sky-700 font-bold">0.00</span></span>
         <span class="text-slate-500">Total CFM: <span id="sum-total-cfm" class="text-emerald-600 font-bold">0</span></span>
       </div>
@@ -482,10 +513,33 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       </table>
     </div>
 
+    <!-- Toilet / Washroom summary -->
+    <div class="p-4 border-t border-slate-200" id="sum-toilet-section">
+      <div class="sec-hdr">Toilet / Washroom — Exhaust, Pressure &amp; Make-up Air Load</div>
+      <div class="overflow-x-auto">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>#</th><th>Toilet</th><th>Type</th><th>Area (sqft)</th><th>Exhaust CFM</th><th>Supply CFM</th>
+              <th>Transfer CFM</th><th>ΔP (Pa)</th><th>Make-up From</th><th>Load Added To</th><th>Load TR</th>
+            </tr>
+          </thead>
+          <tbody id="sum-toilet-tbody"></tbody>
+          <tfoot id="sum-toilet-tfoot"></tfoot>
+        </table>
+      </div>
+      <div class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div class="card-inner p-3 res-box"><div class="res-val text-sky-700" id="sum-rooms-tr">—</div><div class="res-lbl">Rooms TR</div></div>
+        <div class="card-inner p-3 res-box"><div class="res-val text-amber-600" id="sum-toilets-tr">—</div><div class="res-lbl">Toilets TR (incl. make-up air)</div></div>
+        <div class="card-inner p-3 res-box"><div class="res-val text-sky-700" id="sum-grand-tr">—</div><div class="res-lbl">GRAND TOTAL TR</div></div>
+        <div class="card-inner p-3 res-box"><div class="res-val text-emerald-600" id="sum-grand-fa">—</div><div class="res-lbl">Total Outdoor Air CFM (FA + make-up)</div></div>
+      </div>
+    </div>
+
     <!-- System Summary: Kitchen / AHU / CHW roll-up -->
     <div class="p-4 border-t border-slate-200">
-      <div class="sec-hdr">System Summary — Kitchen Ventilation, AHU &amp; CHW</div>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="sec-hdr">System Summary — Kitchen Ventilation, Toilet Exhaust, AHU &amp; CHW</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="card-inner p-3">
           <div class="font-semibold text-slate-700 text-xs mb-2 uppercase tracking-wide">🍳 Kitchen Ventilation</div>
           <div class="space-y-1.5 text-xs">
@@ -493,6 +547,15 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             <div class="flex justify-between"><span class="text-slate-500">Total Makeup Air CFM</span><span class="font-bold text-emerald-600" id="sum-k-makeup">—</span></div>
             <div class="flex justify-between"><span class="text-slate-500">External Tempered CFM</span><span class="font-medium text-slate-600" id="sum-k-external">—</span></div>
             <div class="flex justify-between"><span class="text-slate-500">Internal from AC CFM</span><span class="font-medium text-slate-600" id="sum-k-internal">—</span></div>
+          </div>
+        </div>
+        <div class="card-inner p-3">
+          <div class="font-semibold text-slate-700 text-xs mb-2 uppercase tracking-wide">🚻 Toilet Exhaust</div>
+          <div class="space-y-1.5 text-xs">
+            <div class="flex justify-between"><span class="text-slate-500">Total Exhaust CFM</span><span class="font-bold text-amber-600" id="sum-t-exhaust">—</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Fan Selection CFM (+margin)</span><span class="font-bold text-emerald-600" id="sum-t-fancfm">—</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Exhaust Fan Motor HP</span><span class="font-medium text-slate-600" id="sum-t-hp">—</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Make-up Air Load</span><span class="font-medium text-slate-600" id="sum-t-tr">—</span></div>
           </div>
         </div>
         <div class="card-inner p-3">
@@ -537,6 +600,9 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         <li>FA sensible = FA_CFM × DIFF_db × (0.15 × 1.08) | FA latent = FA_CFM × DIFF_grLb × (0.15 × 0.67)</li>
         <li>FA outside heat = FA_CFM × DIFF_th × (4.5 × 0.85)</li>
         <li>Dehumidifier CFM = ERSH_total / (1.08 × (T_room − ADP)) = ERSH / (1.08 × 19.4)</li>
+        <li>Toilets kept at negative pressure; exhaust = MAX(ACH, per-fixture, per-area) — ASHRAE 62.1 / IMC / NBC 2016</li>
+        <li>Toilet exhaust drawn from AC areas is replaced by outdoor air at the serving AHU and added to the cooling load (same FA formulae &amp; safety factors as rooms)</li>
+        <li>Toilet pressure from orifice equation Q = 2610·A·√ΔP; target −2.5 Pa min, −5 to −10 Pa typical</li>
       </ol>
     </div>
   </div>
@@ -563,6 +629,15 @@ const ADP = 54;
 const HOOD_RATES = { typeI_wall: 150, typeI_island: 200, typeII: 100 };
 const ACH_VALUES = { light: 20, medium: 25, heavy: 30 };
 
+// Toilet / washroom exhaust reference rates (ASHRAE 62.1 Table 6.5 / IMC 403.3.1.1 / NBC 2016 Part 8)
+const TOILET_DEFAULTS = {
+  public:  { fixtureRate: 70, showerRate: 50, areaRate: 2, ach: 10 },  // 70 CFM per WC/urinal continuous
+  private: { fixtureRate: 50, showerRate: 50, areaRate: 2, ach: 10 }   // 50 CFM intermittent (25 continuous)
+};
+const PA_PER_INWG = 249.09;
+const TOILET_DP_MIN_PA  = 2.5;   // ASHRAE 170 minimum negative differential
+const TOILET_DP_HIGH_PA = 15;    // above this, door closing / whistling problems
+
 // ═══════════════════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -582,8 +657,34 @@ let STATE = {
     tSupply: 7, tReturn: 12, pipeLen: 100,
     pumpEff: 0.75, motorEff: 0.90, fittings: 1.5,
     cop: 5.5, ctFactor: 1.25
-  }
+  },
+  toilets: [],
+  toiletSys: { sp: 0.75, fanEff: 0.55, motorEff: 0.85, margin: 10 }
 };
+
+function defaultToilet() {
+  const d = TOILET_DEFAULTS.public;
+  return {
+    id: Date.now() + Math.random(),
+    name: "",
+    usage: "public",          // public | private
+    acMode: "nonac",          // nonac | ac
+    L: "", W: "", H: 10,
+    wc: "", urinal: "", shower: "",
+    useACH: true,     ach: d.ach,
+    useFixture: true, fixtureRate: d.fixtureRate, showerRate: d.showerRate,
+    useArea: true,    areaRate: d.areaRate,
+    makeupFrom: "ac",         // ac (transfer from AC area -> load on AHU) | outdoor (non-AC lobby / louvre -> no AC load)
+    servedBy: "",             // room id whose AHU picks up the make-up load; "" = separate
+    // AC toilet only
+    occupancy: "", lightingWatts: 1.0, equipmentKw: "",
+    extWall: "", extWallDir: "S", glass: "", glassDir: "S", roof: "", partWall: "",
+    offsetPct: 10,
+    // Pressure / transfer path
+    doors: 1, doorW: 3, undercut: 0.75, grilleFree: "", targetPa: 5,
+    notes: ""
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT ROOM FACTORY
@@ -707,7 +808,7 @@ function calcFanHP(cfm, sp, fanEff, motorEff) {
 }
 
 function calcCHW(s) {
-  const totTR   = STATE.rooms.reduce((sum, r) => sum + calcRoom(r).tonnage, 0);
+  const totTR   = projectTotals().totTR;   // rooms + toilets (incl. make-up air)
   const kW      = totTR * 3.517;
   const dt_c    = (+s.tReturn || 12) - (+s.tSupply || 7);
   const dt_f    = dt_c * 9 / 5;
@@ -726,6 +827,153 @@ function calcCHW(s) {
   const eer      = cop * 3.412;
   const compressorKW = kW / cop;
   return { totTR, kW, flowLPS, flowGPM, headM, pumpKW, ctFlow, ctGPM, numChillers, cop, eer, compressorKW, dt_c };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOILET / WASHROOM — exhaust, negative pressure, make-up air & heat load
+// ═══════════════════════════════════════════════════════════════════════════
+// Outdoor-air load of `cfm` treated exactly like room fresh air (bypass-factor split)
+function oaLoad(cfm) {
+  return {
+    sens: cfm * DIFF.db   * (0.15 * 1.08),
+    lat:  cfm * DIFF.grLb * (0.15 * 0.67),
+    out:  cfm * DIFF.th   * (4.5 * 0.85)
+  };
+}
+
+function calcToilet(t) {
+  const L = +t.L || 0, W = +t.W || 0, H = +t.H || 0;
+  const area = L * W, vol = area * H;
+  const fixtures = (+t.wc || 0) + (+t.urinal || 0);
+  const showers  = +t.shower || 0;
+
+  // 1) Code / design exhaust = MAX of enabled methods
+  const achCFM     = t.useACH     ? vol * (+t.ach || 0) / 60 : 0;
+  const fixtureCFM = t.useFixture ? fixtures * (+t.fixtureRate || 0) + showers * (+t.showerRate || 0) : 0;
+  const areaCFM    = t.useArea    ? area * (+t.areaRate || 0) : 0;
+  const codeExhaust = Math.max(achCFM, fixtureCFM, areaCFM);
+  let governing = '—';
+  if (codeExhaust > 0) governing = codeExhaust === achCFM ? 'ACH' : codeExhaust === fixtureCFM ? 'Fixture' : 'Area';
+
+  const isAC = t.acMode === 'ac';
+
+  // 2) Room sensible / latent gains (AC toilets only — a non-AC toilet adds no room load)
+  const occ = isAC ? (+t.occupancy || 0) : 0;
+  const wallBtu   = isAC ? (+t.extWall || 0) * 0.34 * (WALL_TEMPS[t.extWallDir] || 0) : 0;
+  const glassBtu  = isAC ? (+t.glass   || 0) * 0.33 * (GLASS_TEMPS[t.glassDir] || 0) : 0;
+  const roofBtu   = isAC ? (+t.roof    || 0) * 0.12 * CLTD_ROOF : 0;
+  const partBtu   = isAC ? (+t.partWall|| 0) * 0.40 * CLTD_INTERNAL : 0;
+  const peopleSens= occ * 245;
+  const peopleLat = occ * 205;
+  const lightBtu  = isAC ? (+t.lightingWatts || 0) * area * 3.41 : 0;
+  const equipBtu  = isAC ? (+t.equipmentKw || 0) * 3410 : 0;
+  const roomSens  = wallBtu + glassBtu + roofBtu + partBtu + peopleSens + lightBtu + equipBtu;
+
+  // 3) Make-up air: every CFM exhausted is replaced by outdoor air at an AHU.
+  //    AC toilet -> always (its supply + transfer come from AC systems).
+  //    Non-AC toilet -> only when the transfer air is drawn from an AC area.
+  const makeupCounts = isAC || t.makeupFrom !== 'outdoor';
+  const offset = Math.max(0, +t.offsetPct || 0) / 100;
+  const dtCoil = INSIDE.db - ADP;
+  // Supply (AC toilet) handles only the toilet's own room sensible gain; the make-up OA is
+  // conditioned at the AHU where it enters, so it is NOT in the toilet supply CFM.
+  const supply  = isAC && dtCoil > 0 ? (roomSens * 1.1) / (1.08 * dtCoil) : 0;
+  // AC toilet must still exhaust more than it is supplied, to stay negative
+  const exhaust = isAC ? Math.max(codeExhaust, supply * (1 + offset)) : codeExhaust;
+  if (isAC && exhaust > codeExhaust) governing = 'Supply+offset';
+  const oa = oaLoad(makeupCounts ? exhaust : 0);
+  const ershTotal = (roomSens + oa.sens) * 1.1;
+  const erlhTotal = (peopleLat + oa.lat) * 1.05;
+  const gth       = (ershTotal + erlhTotal + oa.out) * 1.03;
+  const tonnage   = gth / 12000;
+  const makeupTR  = ((oa.sens * 1.1) + (oa.lat * 1.05) + oa.out) * 1.03 / 12000;
+  const ownTR     = Math.max(0, tonnage - makeupTR);
+  const makeupCFM = makeupCounts ? exhaust : 0;
+  const transfer  = Math.max(0, exhaust - supply);
+
+  // 4) Negative pressure via orifice equation  Q = 2610 · A · √ΔP  (Q cfm, A ft², ΔP inWG)
+  const undercutArea = (+t.doors || 0) * (+t.doorW || 0) * ((+t.undercut || 0) / 12);
+  const grilleArea   = (+t.grilleFree || 0) / 144;
+  const leakArea     = undercutArea + grilleArea;
+  const dpInwg = transfer > 0 ? (leakArea > 0 ? Math.pow(transfer / (2610 * leakArea), 2) : Infinity) : 0;
+  const dpPa   = dpInwg * PA_PER_INWG;
+  const targetPa = +t.targetPa > 0 ? +t.targetPa : 5;
+  const reqArea  = transfer > 0 ? transfer / (2610 * Math.sqrt(targetPa / PA_PER_INWG)) : 0;
+  const reqGrilleSqIn = Math.max(0, (reqArea - undercutArea) * 144);
+  const undercutVel = undercutArea > 0 ? transfer / leakArea : 0;   // fpm through openings
+  let dpStatus = 'none';
+  if (transfer > 0) dpStatus = dpPa < TOILET_DP_MIN_PA ? 'low' : dpPa > TOILET_DP_HIGH_PA ? 'high' : 'ok';
+  const achActual = vol > 0 ? exhaust * 60 / vol : 0;
+
+  return {
+    area, vol, fixtures, showers, achCFM, fixtureCFM, areaCFM, codeExhaust, governing, isAC,
+    wallBtu, glassBtu, roofBtu, partBtu, peopleSens, peopleLat, lightBtu, equipBtu, roomSens,
+    supply, exhaust, transfer, makeupCounts, makeupCFM, oa, ershTotal, erlhTotal, gth, tonnage, makeupTR, ownTR,
+    undercutArea, grilleArea, leakArea, dpInwg, dpPa, targetPa, reqArea, reqGrilleSqIn, undercutVel, dpStatus, achActual
+  };
+}
+
+function toiletTotals() {
+  const sys = STATE.toiletSys || {};
+  const calcs = (STATE.toilets || []).map(calcToilet);
+  const exhaust   = calcs.reduce((s,c) => s + c.exhaust, 0);
+  const supply    = calcs.reduce((s,c) => s + c.supply, 0);
+  const transfer  = calcs.reduce((s,c) => s + c.transfer, 0);
+  const makeupCFM = calcs.reduce((s,c) => s + c.makeupCFM, 0);
+  const tr        = calcs.reduce((s,c) => s + c.tonnage, 0);
+  const makeupTR  = calcs.reduce((s,c) => s + c.makeupTR, 0);
+  const fanCFM    = exhaust * (1 + (+sys.margin || 0) / 100);
+  const fanHP     = calcFanHP(fanCFM, +sys.sp || 0.75, sys.fanEff || 0.55, sys.motorEff || 0.85);
+  return { calcs, exhaust, supply, transfer, makeupCFM, tr, makeupTR, fanCFM, fanHP, count: calcs.length };
+}
+
+// Project-wide totals: rooms + toilets (use everywhere a "total TR / CFM" is shown)
+function projectTotals() {
+  const rc = STATE.rooms.map(calcRoom);
+  const tt = toiletTotals();
+  const roomsTR  = rc.reduce((s,c) => s + c.tonnage, 0);
+  const roomsCFM = rc.reduce((s,c) => s + c.dehCfm, 0);
+  const roomsFA  = rc.reduce((s,c) => s + c.freshAir, 0);
+  return {
+    roomsTR, roomsCFM, roomsFA, toilets: tt,
+    totTR:  roomsTR + tt.tr,
+    totCFM: roomsCFM + tt.supply,
+    totOA:  roomsFA + tt.makeupCFM
+  };
+}
+
+// Toilet load (TR / supply CFM) assigned to a given room's AHU
+function toiletLoadForRoom(rid) {
+  return (STATE.toilets || []).reduce((acc, t) => {
+    if (String(t.servedBy) === String(rid)) { const c = calcToilet(t); acc.tr += c.tonnage; acc.cfm += c.supply; acc.n++; }
+    return acc;
+  }, { tr: 0, cfm: 0, n: 0 });
+}
+
+// Re-render a container while keeping keyboard focus/caret in the field being typed in
+function withFocus(containerId, fn) {
+  const c = document.getElementById(containerId);
+  const a = document.activeElement;
+  let idx = -1, ss = null, se = null;
+  if (c && a && c.contains(a)) {
+    idx = Array.from(c.querySelectorAll('input,select,textarea')).indexOf(a);
+    try { ss = a.selectionStart; se = a.selectionEnd; } catch(e) {}
+  }
+  fn();
+  if (idx >= 0 && c) {
+    const el = c.querySelectorAll('input,select,textarea')[idx];
+    if (el) {
+      el.focus({ preventScroll: true });
+      try {
+        if (ss !== null && ss !== undefined) el.setSelectionRange(ss, se);
+        else if (el.type === 'number') {
+          // number inputs expose no caret API — flip to text briefly to put the caret at the end
+          const len = String(el.value).length;
+          el.type = 'text'; el.setSelectionRange(len, len); el.type = 'number';
+        }
+      } catch(e) {}
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -791,7 +1039,9 @@ function renderRooms() {
     </div>`;
     return;
   }
-  container.innerHTML = STATE.rooms.map((r, idx) => buildRoomCard(r, idx)).join('');
+  withFocus('rooms-container', () => {
+    container.innerHTML = STATE.rooms.map((r, idx) => buildRoomCard(r, idx)).join('');
+  });
 }
 
 function buildRoomCard(r, idx) {
@@ -966,6 +1216,10 @@ function buildRoomCard(r, idx) {
       </div>
     </div>
 
+    ${(() => { const tl = toiletLoadForRoom(rid); return tl.n ? `<div class="card-inner p-3 text-xs" style="border-left:3px solid #7c3aed;">
+      🚻 <b>${tl.n} toilet(s)</b> assigned to this room's AHU: <b>+${n(tl.tr,2)} TR</b> (make-up air${tl.cfm > 0 ? ` + ${n(tl.cfm,0)} CFM AC-toilet supply` : ''}).
+      AHU total for this room = <b class="text-sky-700">${n(c.tonnage + tl.tr,2)} TR</b>. See the Toilet / Washroom tab.</div>` : ''; })()}
+
     <!-- Heat Gain Breakdown -->
     <div class="mt-3 card-inner p-3">
       <div class="sec-hdr" style="margin-bottom:8px;">Heat Gain Breakdown</div>
@@ -983,6 +1237,276 @@ function buildRoomCard(r, idx) {
   </div>`;
 
   return `<div class="card mb-4 overflow-hidden">${hdr}${body}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER: TOILET / WASHROOM
+// ═══════════════════════════════════════════════════════════════════════════
+function dpBadge(c) {
+  if (c.dpStatus === 'none') return '<span class="tr-warn">No transfer air</span>';
+  const v = isFinite(c.dpPa) ? '−' + n(c.dpPa, 1) + ' Pa' : 'No opening!';
+  if (c.dpStatus === 'ok')  return `<span class="tr-ok">✓ ${v}</span>`;
+  if (c.dpStatus === 'low') return `<span class="tr-warn">⚠ ${v} (weak)</span>`;
+  return `<span class="tr-under">✗ ${v} (too high)</span>`;
+}
+
+function dpAdvice(c) {
+  if (c.dpStatus === 'none') return 'Enter dimensions / fixtures so that an exhaust quantity is calculated.';
+  if (!isFinite(c.dpPa)) return `No transfer path entered. Provide door undercut / transfer grille of ≈ ${n(c.reqArea*144,0)} sq.in free area for −${n(c.targetPa,1)} Pa.`;
+  if (c.dpStatus === 'low') return `Pressure too weak (< ${TOILET_DP_MIN_PA} Pa) — openings are large for this exhaust. Reduce grille size or increase exhaust. Odour may escape when doors are opened.`;
+  if (c.dpStatus === 'high') return `Pressure too high (> ${TOILET_DP_HIGH_PA} Pa) — door will whistle / be hard to close. Add a transfer grille of ≈ ${n(c.reqGrilleSqIn,0)} sq.in free area (or larger undercut) to reach −${n(c.targetPa,1)} Pa.`;
+  return `Good — toilet held at −${n(c.dpPa,1)} Pa, odours contained. Required total opening for −${n(c.targetPa,1)} Pa: ${n(c.reqArea*144,0)} sq.in.`;
+}
+
+function renderToilets() {
+  const container = document.getElementById('toilets-container');
+  const tt = toiletTotals();
+  const tot = document.getElementById('toilet-totals');
+  if (tot) {
+    tot.innerHTML = [
+      { v: n(tt.exhaust, 0), l: 'Total Exhaust CFM', c: 'text-amber-600' },
+      { v: n(tt.fanCFM, 0),  l: `Fan Selection CFM (+${+STATE.toiletSys.margin||0}%)`, c: 'text-emerald-600' },
+      { v: n(tt.fanHP, 2),   l: 'Exhaust Fan Motor HP', c: 'text-slate-600' },
+      { v: n(tt.makeupCFM, 0), l: 'Make-up OA on AHUs (CFM)', c: 'text-sky-700' },
+      { v: n(tt.tr, 2),      l: 'Toilet Load Added (TR)', c: 'text-sky-700' },
+    ].map(b => `<div class="card-inner p-3 res-box"><div class="res-val ${b.c}">${b.v}</div><div class="res-lbl">${b.l}</div></div>`).join('');
+  }
+  if (!container) return;
+  withFocus('toilets-container', () => {
+    if (!STATE.toilets.length) {
+      container.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#94a3b8;">
+        <div style="font-size:42px;margin-bottom:12px;">🚻</div>
+        <div style="font-size:16px;font-weight:600;color:#64748b;margin-bottom:6px;">No toilets / washrooms added</div>
+        <div style="font-size:13px;">Add each toilet block to size its exhaust, check negative pressure and add its make-up air load to the AHU.</div>
+      </div>`;
+      return;
+    }
+    container.innerHTML = STATE.toilets.map((t, i) => buildToiletCard(t, i)).join('');
+  });
+}
+
+function buildToiletCard(t, idx) {
+  const c = calcToilet(t);
+  const tid = t.id;
+  const collapsed = !!STATE.collapsed[tid];
+  const F = (field, label, tip, opts) => {
+    opts = opts || {};
+    const val = t[field] === undefined || t[field] === null ? '' : t[field];
+    return `<div><label class="lbl" data-tip="${esc(tip)}">${label}</label>
+      <input class="inp inp-sm" type="${opts.type||'number'}" step="${opts.step||'any'}" placeholder="${opts.ph||'0'}" value="${esc(val)}"
+        oninput="setToiletField('${tid}','${field}',this.value)"/></div>`;
+  };
+  const S = (field, label, tip, options) => `<div><label class="lbl" data-tip="${esc(tip)}">${label}</label>
+      <select class="inp inp-sm" onchange="setToiletField('${tid}','${field}',this.value)">
+        ${options.map(o => `<option value="${esc(o[0])}" ${String(t[field])===String(o[0])?'selected':''}>${esc(o[1])}</option>`).join('')}
+      </select></div>`;
+  const CK = (field, label) => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;">
+      <input type="checkbox" ${t[field] ? 'checked' : ''} onchange="setToiletField('${tid}','${field}',this.checked)"/> ${label}</label>`;
+  const dirOpts = WALL_DIRS.map(d => [d, d]);
+  const roomOpts = [['', 'Separate unit / not assigned']].concat(
+    STATE.rooms.map((r, i) => [String(r.id), `${i+1}. ${r.name || 'Room ' + (i+1)}`]));
+  const winner = (m) => c.governing === m ? 'border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-bg);' : '';
+
+  const hdr = `
+  <div class="room-header${collapsed ? '' : ' open'}" onclick="toggleToilet('${tid}')">
+    <div class="flex items-center gap-3 flex-wrap">
+      <span class="w-7 h-7 rounded-full badge-pur flex items-center justify-center text-xs font-bold">T${idx+1}</span>
+      <span class="font-semibold text-slate-800">${esc(t.name) || '<span class="italic text-slate-400">Unnamed Toilet</span>'}</span>
+      <span class="text-xs badge-cyan" style="padding:1px 8px;border-radius:12px;">${t.usage === 'private' ? 'Private' : 'Public'}</span>
+      <span class="text-xs ${c.isAC ? 'badge-em' : 'badge-amb'}" style="padding:1px 8px;border-radius:12px;">${c.isAC ? 'AC' : 'Non-AC'}</span>
+      ${c.area ? `<span class="text-xs text-slate-500">${n(c.area,0)} sq.ft</span>` : ''}
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="text-right">
+        <div class="text-lg font-bold text-amber-600">${n(c.exhaust, 0)} CFM</div>
+        <div class="text-xs text-slate-500">Load: ${n(c.tonnage)} TR</div>
+        ${dpBadge(c)}
+      </div>
+      <button onclick="event.stopPropagation();duplicateToilet('${tid}')" class="btn btn-amber text-xs no-print" style="padding:2px 8px;" title="Duplicate">⧉</button>
+      <button onclick="event.stopPropagation();deleteToilet('${tid}')" class="btn btn-red text-xs no-print" style="padding:2px 8px;">✕</button>
+      <span class="text-slate-500 text-sm">${collapsed ? '▶' : '▼'}</span>
+    </div>
+  </div>`;
+  if (collapsed) return `<div class="card mb-4 overflow-hidden">${hdr}</div>`;
+
+  const acSection = c.isAC ? `
+    <div>
+      <div class="sec-hdr">AC Toilet — Room Heat Gain</div>
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+        ${F('occupancy','Occupancy (Nos)','Peak simultaneous users (≈ 1 per WC/urinal/shower). 245 BTU/hr sens + 205 BTU/hr latent each',{step:1})}
+        ${F('lightingWatts','Lighting (W/sqft)','Toilet lighting density — 1.0 W/sqft typical',{step:0.1,ph:'1.0'})}
+        ${F('equipmentKw','Equipment (kW)','Hand dryers, geysers, etc. Apply diversity — e.g. 1.5 kW dryer × 0.25 use = 0.4 kW',{step:0.1})}
+        ${F('extWall','Ext. Wall (sqft)','External wall area (U=0.34, directional CLTD)')}
+        ${S('extWallDir','Wall Facing','Orientation of external wall', dirOpts)}
+        ${F('glass','Ext. Glass (sqft)','External window / ventilator glass (U=0.33, solar CLTD)')}
+        ${S('glassDir','Glass Facing','Orientation of glass', dirOpts)}
+        ${F('roof','Roof (sqft)','Exposed roof above (U=0.12, CLTD 51.2°F)')}
+        ${F('partWall','Part. Wall (sqft)','Wall to non-AC area (U=0.40, CLTD 29.2°F)')}
+        ${F('offsetPct','Neg. Offset (%)','Exhaust kept at least this % above supply so the AC toilet stays negative (10–20% typical)',{step:1,ph:'10'})}
+      </div>
+    </div>` : '';
+
+  const makeupSel = c.isAC
+    ? `<div><label class="lbl" data-tip="AC toilet: supply + transfer air both come from AC systems, so the full exhaust is made up as outdoor air">Make-up Air From</label>
+         <div class="inp inp-sm" style="opacity:.75;">AC system (always counted)</div></div>`
+    : S('makeupFrom','Make-up Air From','Where the air sucked into the toilet comes from. From an AC room/corridor → that AHU must take in extra outdoor air (adds load).',
+        [['ac','AC area via door / grille (adds load)'],['outdoor','Non-AC lobby / fresh-air louvre (no AC load)']]);
+
+  const body = `
+  <div class="p-5 space-y-4">
+    <div>
+      <div class="sec-hdr">Toilet / Washroom Details</div>
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+        <div class="col-span-2"><label class="lbl" data-tip="e.g. GENTS TOILET GF, LADIES TOILET, BATHROOM-1">Name</label>
+          <input class="inp" type="text" value="${esc(t.name||'')}" placeholder="e.g. GENTS TOILET" oninput="setToiletField('${tid}','name',this.value)"/></div>
+        ${S('usage','Usage','Public (offices, malls, banks) uses 70 CFM per WC/urinal; Private (residence, hotel room, exec. toilet) uses 50 CFM',[['public','Public / Commercial'],['private','Private / Residential']])}
+        ${S('acMode','Conditioning','Non-AC: exhaust only, kept negative. AC: has its own supply air + exhaust.',[['nonac','Non-AC (exhaust only)'],['ac','Air-conditioned']])}
+        ${F('L','Length (ft)','Toilet length')}
+        ${F('W','Width (ft)','Toilet width')}
+        ${F('H','Height (ft)','Clear / false-ceiling height used for volume',{ph:'10'})}
+        ${F('wc','WC (Nos)','Water closets',{step:1})}
+        ${F('urinal','Urinals (Nos)','Urinals',{step:1})}
+        ${F('shower','Showers (Nos)','Shower heads / bathing cubicles',{step:1})}
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-hdr">Exhaust Sizing — MAX of enabled methods (governing method highlighted)</div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="card-inner p-3" style="${winner('ACH')}">
+          ${CK('useACH','① Air Change Method')}
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            ${F('ach','ACH','Air changes per hour — NBC 2016: 6–10; Indian practice 10–15; hospitals (ASHRAE 170) 10',{step:1,ph:'10'})}
+            <div class="res-box"><div class="font-bold text-sky-700" style="font-size:18px;">${n(c.achCFM,0)}</div><div class="res-lbl">CFM (vol ${n(c.vol,0)} cu.ft)</div></div>
+          </div>
+        </div>
+        <div class="card-inner p-3" style="${winner('Fixture')}">
+          ${CK('useFixture','② Per Fixture (ASHRAE 62.1)')}
+          <div class="grid grid-cols-3 gap-2 mt-2">
+            ${F('fixtureRate','CFM/WC·Urinal','Public 70 (continuous), Private 50 (intermittent) / 25 (continuous)',{step:5})}
+            ${F('showerRate','CFM/Shower','50 intermittent / 20 continuous',{step:5})}
+            <div class="res-box"><div class="font-bold text-sky-700" style="font-size:18px;">${n(c.fixtureCFM,0)}</div><div class="res-lbl">CFM</div></div>
+          </div>
+        </div>
+        <div class="card-inner p-3" style="${winner('Area')}">
+          ${CK('useArea','③ Per Floor Area')}
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            ${F('areaRate','CFM/sqft','Rule of thumb 1–2 CFM/sq.ft for toilets',{step:0.1,ph:'2'})}
+            <div class="res-box"><div class="font-bold text-sky-700" style="font-size:18px;">${n(c.areaCFM,0)}</div><div class="res-lbl">CFM (${n(c.area,0)} sqft)</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${acSection}
+
+    <div>
+      <div class="sec-hdr">Make-up Air &amp; Load Allocation</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+        ${makeupSel}
+        ${S('servedBy','Load Added To (AHU of)','The room/AHU that supplies the transfer air — its AHU schedule row gets this toilet\'s TR & supply CFM', roomOpts)}
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-hdr">Negative Pressure — Transfer Air Path</div>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+        ${F('doors','Doors (Nos)','Doors through which transfer air enters',{step:1,ph:'1'})}
+        ${F('doorW','Door Width (ft)','Clear door width',{step:0.25,ph:'3'})}
+        ${F('undercut','Undercut (in)','Gap below door — 0.5 to 1 inch typical',{step:0.25,ph:'0.75'})}
+        ${F('grilleFree','Transfer Grille Free Area (sq.in)','Free area of door / wall transfer grille (≈ 50% of face area)')}
+        ${F('targetPa','Target ΔP (Pa)','Design negative pressure: 2.5 min, 5–10 typical',{step:0.5,ph:'5'})}
+      </div>
+    </div>
+
+    <div class="card-inner p-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+        <div class="res-box"><div class="res-val text-amber-600">${n(c.exhaust,0)}</div><div class="res-lbl">Exhaust CFM (${c.governing})</div></div>
+        <div class="res-box"><div class="res-val text-sky-700">${n(c.supply,0)}</div><div class="res-lbl">Supply CFM ${c.isAC ? '(Dehum.)' : '(none)'}</div></div>
+        <div class="res-box"><div class="res-val text-emerald-600">${n(c.transfer,0)}</div><div class="res-lbl">Transfer Air CFM</div></div>
+        <div class="res-box"><div class="res-val text-purple-600">${isFinite(c.dpPa) ? '−' + n(c.dpPa,1) : '∞'}</div><div class="res-lbl">Room Pressure (Pa)</div></div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-200 text-xs">
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.achActual,1)}</div><div class="res-lbl">Actual ACH</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.leakArea*144,0)} sq.in</div><div class="res-lbl">Opening Provided</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.reqArea*144,0)} sq.in</div><div class="res-lbl">Opening Req'd @ −${n(c.targetPa,1)} Pa</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.undercutVel,0)} fpm</div><div class="res-lbl">Velocity thru Openings</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.makeupCFM,0)}</div><div class="res-lbl">Make-up OA on AHU (CFM)</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.makeupTR,2)} TR</div><div class="res-lbl">Make-up Air Load</div></div>
+        <div class="res-box"><div class="font-medium text-slate-600">${n(c.ownTR,2)} TR</div><div class="res-lbl">Toilet Room Load (AC)</div></div>
+        <div class="res-box"><div class="font-bold text-sky-700">${n(c.tonnage,2)} TR</div><div class="res-lbl">Total Toilet Load</div></div>
+      </div>
+      <div class="mt-3 text-xs" style="color:var(--text-muted);">${dpBadge(c)} &nbsp;${esc(dpAdvice(c))}</div>
+    </div>
+
+    <div>
+      <label class="lbl">Notes / Remarks</label>
+      <textarea class="inp" rows="2" placeholder="e.g. Exhaust via inline fan to shaft, louvre at terrace..."
+        oninput="updateToiletNote('${tid}',this.value)" style="resize:vertical;min-height:44px;">${escHtml(t.notes||'')}</textarea>
+    </div>
+  </div>`;
+  return `<div class="card mb-4 overflow-hidden">${hdr}${body}</div>`;
+}
+
+function findToilet(tid) { return STATE.toilets.find(x => String(x.id) === String(tid)); }
+
+function setToiletField(tid, field, val) {
+  const t = findToilet(tid);
+  if (!t) return;
+  t[field] = val;
+  if (field === 'usage') {
+    const d = TOILET_DEFAULTS[val] || TOILET_DEFAULTS.public;
+    t.fixtureRate = d.fixtureRate; t.showerRate = d.showerRate;
+  }
+  refreshAfterToiletChange();
+}
+
+function updateToiletNote(tid, val) { const t = findToilet(tid); if (t) t.notes = val; }
+
+function refreshAfterToiletChange() {
+  renderToilets();
+  renderNav();
+  updateAHUTotals();
+  renderCHW();
+  renderSummary();
+}
+
+function addToilet() {
+  STATE.toilets.push(defaultToilet());
+  STATE.ahu.rows = [];
+  refreshAfterToiletChange();
+}
+
+function duplicateToilet(tid) {
+  const idx = STATE.toilets.findIndex(t => String(t.id) === String(tid));
+  if (idx === -1) return;
+  const copy = JSON.parse(JSON.stringify(STATE.toilets[idx]));
+  copy.id = Date.now() + Math.random();
+  copy.name = (copy.name || 'Toilet') + ' (Copy)';
+  STATE.toilets.splice(idx + 1, 0, copy);
+  STATE.ahu.rows = [];
+  refreshAfterToiletChange();
+}
+
+function deleteToilet(tid) {
+  STATE.toilets = STATE.toilets.filter(t => String(t.id) !== String(tid));
+  STATE.ahu.rows = [];
+  refreshAfterToiletChange();
+}
+
+function toggleToilet(tid) {
+  STATE.collapsed[tid] = !STATE.collapsed[tid];
+  renderToilets();
+}
+
+// Update the AHU tab header totals (rooms + toilets) without rebuilding manually-edited rows
+function updateAHUTotals() {
+  const pt = projectTotals();
+  const sp = STATE.ahu.sp || 1.5, fe = STATE.ahu.fanEff || 0.65, me = STATE.ahu.motorEff || 0.90;
+  const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setEl('ahu-total-cfm',  n(pt.totCFM, 0));
+  setEl('ahu-total-tons', n(pt.totTR, 2));
+  setEl('ahu-fan-hp',     n(calcFanHP(pt.totCFM, sp, fe, me), 2));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1004,8 +1528,9 @@ function renderKitchen() {
 // RENDER: AHU
 // ═══════════════════════════════════════════════════════════════════════════
 function renderAHU() {
-  const totTR  = STATE.rooms.reduce((s, r) => s + calcRoom(r).tonnage, 0);
-  const totCFM = STATE.rooms.reduce((s, r) => s + calcRoom(r).dehCfm, 0);
+  const pt = projectTotals();
+  const totTR  = pt.totTR;
+  const totCFM = pt.totCFM;
   const sp  = STATE.ahu.sp  || 1.5;
   const fe  = STATE.ahu.fanEff  || 0.65;
   const me  = STATE.ahu.motorEff|| 0.90;
@@ -1031,18 +1556,38 @@ function refreshAHUFromRooms(silent) {
   const me = STATE.ahu.motorEff|| 0.90;
   STATE.ahu.rows = STATE.rooms.map((r, i) => {
     const c = calcRoom(r);
-    const hp = calcFanHP(c.dehCfm, sp, fe, me);
+    const tl = toiletLoadForRoom(r.id);          // toilets whose make-up air this AHU supplies
+    const cfm = c.dehCfm + tl.cfm;
+    const hp = calcFanHP(cfm, sp, fe, me);
     const mhp = Math.ceil((hp / 0.9) * 2) / 2;
     return {
       tag:        `AHU-${String(i+1).padStart(2,'0')}`,
-      area:       r.name || `Room ${i+1}`,
-      cfm:        n(c.dehCfm, 0),
-      tons:       n(c.tonnage, 2),
+      area:       (r.name || `Room ${i+1}`) + (tl.n ? ` + ${tl.n} toilet(s)` : ''),
+      cfm:        n(cfm, 0),
+      tons:       n(c.tonnage + tl.tr, 2),
       sp:         n(sp, 2),
       fanHP:      n(hp, 2),
       motorHP:    n(mhp, 2),
       filterType: STATE.ahu.filterType || 'G4+F7'
     };
+  });
+  // Toilets not assigned to any room → own row so their load is never lost
+  const roomIds = new Set(STATE.rooms.map(r => String(r.id)));
+  STATE.toilets.forEach((t, i) => {
+    if (roomIds.has(String(t.servedBy))) return;
+    const c = calcToilet(t);
+    if (c.tonnage <= 0 && c.supply <= 0) return;
+    const hp = calcFanHP(c.supply, sp, fe, me);
+    STATE.ahu.rows.push({
+      tag:        `TLT-${String(i+1).padStart(2,'0')}`,
+      area:       (t.name || `Toilet ${i+1}`) + (c.isAC ? ' (AC)' : ' (make-up air)'),
+      cfm:        n(c.supply, 0),
+      tons:       n(c.tonnage, 2),
+      sp:         n(sp, 2),
+      fanHP:      n(hp, 2),
+      motorHP:    n(Math.ceil((hp / 0.9) * 2) / 2, 2),
+      filterType: STATE.ahu.filterType || 'G4+F7'
+    });
   });
   if (!silent) renderAHUTable();
 }
@@ -1168,9 +1713,47 @@ function renderSummary() {
   const setT = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
   setT('sum-customer', p.customer || '—');
   setT('sum-project',  p.name || '—');
+  const pt = projectTotals();
+  const tt = pt.toilets;
   setT('sum-rooms',    rooms.length);
-  setT('sum-total-tr',  n(totTR));
-  setT('sum-total-cfm', n(totCFM, 0));
+  setT('sum-toilets',  tt.count);
+  setT('sum-total-tr',  n(pt.totTR));
+  setT('sum-total-cfm', n(pt.totCFM, 0));
+  setT('sum-rooms-tr',   n(totTR));
+  setT('sum-toilets-tr', n(tt.tr));
+  setT('sum-grand-tr',   n(pt.totTR));
+  setT('sum-grand-fa',   n(pt.totOA, 0));
+
+  const roomName = (rid) => { const i = rooms.findIndex(r => String(r.id) === String(rid)); return i >= 0 ? (rooms[i].name || `Room ${i+1}`) : 'Separate'; };
+  const ttb = document.getElementById('sum-toilet-tbody');
+  const ttf = document.getElementById('sum-toilet-tfoot');
+  if (ttb) {
+    ttb.innerHTML = tt.count ? STATE.toilets.map((t, i) => {
+      const c = tt.calcs[i];
+      const dpCls = c.dpStatus === 'ok' ? 'text-emerald-600' : c.dpStatus === 'high' ? 'text-red-600' : 'text-amber-600';
+      return `<tr>
+        <td class="text-slate-400">T${i+1}</td>
+        <td class="font-medium text-slate-800">${esc(t.name || `Toilet ${i+1}`)}</td>
+        <td class="text-slate-500">${t.usage === 'private' ? 'Private' : 'Public'} · ${c.isAC ? 'AC' : 'Non-AC'}</td>
+        <td>${n(c.area, 0)}</td>
+        <td class="font-bold text-amber-600">${n(c.exhaust, 0)}</td>
+        <td>${n(c.supply, 0)}</td>
+        <td>${n(c.transfer, 0)}</td>
+        <td class="${dpCls}">${c.dpStatus === 'none' ? '—' : isFinite(c.dpPa) ? '−' + n(c.dpPa, 1) : 'no opening'}</td>
+        <td class="text-slate-500">${c.makeupCounts ? 'AC area' : 'Non-AC / OA'}</td>
+        <td class="text-slate-500">${esc(roomName(t.servedBy))}</td>
+        <td class="font-bold text-sky-700">${n(c.tonnage)}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="11" class="text-slate-400" style="text-align:center;">No toilets added — use the Toilet / Washroom tab</td></tr>';
+    ttf.innerHTML = tt.count ? `<tr>
+      <td colspan="3" class="text-left">TOTAL</td><td></td>
+      <td class="text-amber-600">${n(tt.exhaust, 0)}</td><td>${n(tt.supply, 0)}</td><td>${n(tt.transfer, 0)}</td>
+      <td colspan="3"></td><td class="text-sky-700">${n(tt.tr)}</td></tr>` : '';
+  }
+  setT('sum-t-exhaust', n(tt.exhaust, 0));
+  setT('sum-t-fancfm',  n(tt.fanCFM, 0));
+  setT('sum-t-hp',      n(tt.fanHP, 2));
+  setT('sum-t-tr',      n(tt.tr, 2) + ' TR');
 
   const tbody = document.getElementById('summary-tbody');
   const tfoot = document.getElementById('summary-tfoot');
@@ -1222,9 +1805,9 @@ function renderSummary() {
   setT('sum-k-internal', n(kr.internal, 0));
 
   const ahuSp = STATE.ahu.sp || 1.5, ahuFe = STATE.ahu.fanEff || 0.65, ahuMe = STATE.ahu.motorEff || 0.90;
-  const ahuTotHP = calcFanHP(totCFM, ahuSp, ahuFe, ahuMe);
-  setT('sum-ahu-cfm',   n(totCFM, 0));
-  setT('sum-ahu-tons',  n(totTR, 2));
+  const ahuTotHP = calcFanHP(pt.totCFM, ahuSp, ahuFe, ahuMe);
+  setT('sum-ahu-cfm',   n(pt.totCFM, 0));
+  setT('sum-ahu-tons',  n(pt.totTR, 2));
   setT('sum-ahu-hp',    n(ahuTotHP, 2));
   setT('sum-ahu-count', STATE.ahu.rows.length || rooms.length);
 
@@ -1239,8 +1822,9 @@ function renderSummary() {
 // RENDER: NAV BAR
 // ═══════════════════════════════════════════════════════════════════════════
 function renderNav() {
-  const totTR  = STATE.rooms.reduce((s,r) => s + calcRoom(r).tonnage, 0);
-  const totCFM = STATE.rooms.reduce((s,r) => s + calcRoom(r).dehCfm, 0);
+  const pt = projectTotals();
+  const totTR  = pt.totTR;
+  const totCFM = pt.totCFM;
   const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
   set('nav-tr',  n(totTR) + ' TR');
   set('nav-cfm', n(totCFM, 0));
@@ -1278,6 +1862,7 @@ function render() {
   renderNav();
   renderRooms();
   renderKitchen();
+  renderToilets();
   renderAHU();
   renderCHW();
   renderSummary();
@@ -1295,16 +1880,9 @@ function setField(rid, field, val) {
     renderNav();
     renderSummary();
     // Recalc AHU totals (not full re-render since rows are manually edited)
-    const totTR  = STATE.rooms.reduce((s,rx) => s + calcRoom(rx).tonnage, 0);
-    const totCFM = STATE.rooms.reduce((s,rx) => s + calcRoom(rx).dehCfm, 0);
-    const sp = STATE.ahu.sp || 1.5;
-    const fe = STATE.ahu.fanEff  || 0.65;
-    const me = STATE.ahu.motorEff|| 0.90;
-    const setEl = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
-    setEl('ahu-total-cfm',  n(totCFM, 0));
-    setEl('ahu-total-tons', n(totTR, 2));
-    setEl('ahu-fan-hp',     n(calcFanHP(totCFM, sp, fe, me), 2));
+    updateAHUTotals();
     renderCHW();
+    if (field === 'name') renderToilets();   // room names appear in toilet "Load Added To" lists
     // Re-render just this room's card result panel without rebuilding all rooms
     // by rebuilding rooms (cheap enough)
     renderRooms();
@@ -1317,6 +1895,7 @@ function setNested(rid, obj, key, val) {
     r[obj][key] = val;
     renderNav();
     renderSummary();
+    updateAHUTotals();
     renderCHW();
     renderRooms();
   }
@@ -1341,6 +1920,7 @@ function duplicateRoom(id) {
 
 function deleteRoom(rid) {
   STATE.rooms = STATE.rooms.filter(x => String(x.id) !== String(rid));
+  STATE.toilets.forEach(t => { if (String(t.servedBy) === String(rid)) t.servedBy = ''; });
   STATE.ahu.rows = [];
   render();
 }
@@ -1363,6 +1943,7 @@ function switchTab(tabName, btn) {
   if (tabName === 'chw')     { renderCHW(); }
   if (tabName === 'summary') { renderSummary(); }
   if (tabName === 'kitchen') { renderKitchen(); }
+  if (tabName === 'toilet')  { renderToilets(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1454,6 +2035,8 @@ function confirmSaveAs() {
     kitchen: STATE.kitchen,
     ahu:     STATE.ahu,
     chw:     STATE.chw,
+    toilets: STATE.toilets,
+    toiletSys: STATE.toiletSys,
     savedAt: new Date().toISOString()
   };
   writeSaves(saves);
@@ -1469,6 +2052,9 @@ function confirmLoadSave(key) {
   STATE.kitchen = s.kitchen || STATE.kitchen;
   STATE.ahu     = s.ahu     || STATE.ahu;
   STATE.chw     = s.chw     || STATE.chw;
+  // Older saves have no toilets — merge onto defaults so missing fields never break calcs
+  STATE.toilets = (s.toilets || []).map(t => Object.assign(defaultToilet(), t));
+  STATE.toiletSys = Object.assign({ sp: 0.75, fanEff: 0.55, motorEff: 0.85, margin: 10 }, s.toiletSys || {});
   syncProjectInputs();
   render();
   closeSaveLoadModal();
@@ -1505,6 +2091,10 @@ function syncProjectInputs() {
   v('chw-fittings', STATE.chw.fittings);
   v('chw-cop',      STATE.chw.cop);
   v('chw-ctfactor', STATE.chw.ctFactor);
+  v('tsys-sp',       STATE.toiletSys.sp);
+  v('tsys-faneff',   STATE.toiletSys.fanEff);
+  v('tsys-motoreff', STATE.toiletSys.motorEff);
+  v('tsys-margin',   STATE.toiletSys.margin);
   // Select elements
   const setSelect = (id, val) => {
     const el = document.getElementById(id);
@@ -1524,6 +2114,8 @@ setInterval(() => {
     kitchen: STATE.kitchen,
     ahu:     STATE.ahu,
     chw:     STATE.chw,
+    toilets: STATE.toilets,
+    toiletSys: STATE.toiletSys,
     savedAt: new Date().toISOString()
   };
   localStorage.setItem('hvac_saves', JSON.stringify(saves));
@@ -1545,7 +2137,9 @@ function exportCSVFallback() {
   const totTR  = allCalcs.reduce((s,c) => s + c.tonnage, 0);
   const kr = calcKitchen(STATE.kitchen);
   const cc = calcCHW(STATE.chw);
-  const ahuTotHP = calcFanHP(totCFM, STATE.ahu.sp||1.5, STATE.ahu.fanEff||0.65, STATE.ahu.motorEff||0.90);
+  const pt = projectTotals();
+  const tt = pt.toilets;
+  const ahuTotHP = calcFanHP(pt.totCFM, STATE.ahu.sp||1.5, STATE.ahu.fanEff||0.65, STATE.ahu.motorEff||0.90);
 
   const rows = [
     ['HVAC Heat Load Summary'],
@@ -1570,13 +2164,27 @@ function exportCSVFallback() {
   rows.push(['Internal from AC CFM', kr.internal.toFixed(0)]);
 
   rows.push([]);
+  rows.push(['TOILET / WASHROOM EXHAUST & PRESSURE']);
+  rows.push(['#','Toilet','Usage','AC/Non-AC','Area (sqft)','Exhaust CFM','Governing','Supply CFM','Transfer CFM','Pressure (Pa)','Make-up From','Load TR']);
+  STATE.toilets.forEach((t, i) => {
+    const c = tt.calcs[i];
+    rows.push(['T'+(i+1), t.name||`Toilet ${i+1}`, t.usage, c.isAC?'AC':'Non-AC', c.area.toFixed(0), c.exhaust.toFixed(0), c.governing,
+      c.supply.toFixed(0), c.transfer.toFixed(0), isFinite(c.dpPa) ? (-c.dpPa).toFixed(1) : 'no opening',
+      c.makeupCounts?'AC area':'Non-AC/OA', c.tonnage.toFixed(2)]);
+  });
+  rows.push(['TOTAL','','','','', tt.exhaust.toFixed(0),'', tt.supply.toFixed(0), tt.transfer.toFixed(0),'','', tt.tr.toFixed(2)]);
+  rows.push(['Exhaust fan selection CFM', tt.fanCFM.toFixed(0), 'Fan motor HP', tt.fanHP.toFixed(2)]);
+  rows.push([]);
+  rows.push(['ROOMS TR', totTR.toFixed(2), 'TOILETS TR', tt.tr.toFixed(2), 'GRAND TOTAL TR', pt.totTR.toFixed(2)]);
+
+  rows.push([]);
   rows.push(['AHU SCHEDULE']);
   rows.push(['Tag','Area Served','Supply CFM','Cooling Tons','Static Pr. (inWG)','Fan HP','Motor HP','Filter Type']);
   STATE.ahu.rows.forEach(row => {
     rows.push([row.tag, row.area, +row.cfm||0, +row.tons||0, +row.sp||0,
       +row.fanHP||0, +row.motorHP||0, row.filterType||'']);
   });
-  rows.push(['TOTAL','', +totCFM.toFixed(0), +totTR.toFixed(2), '', +ahuTotHP.toFixed(2)]);
+  rows.push(['TOTAL','', +pt.totCFM.toFixed(0), +pt.totTR.toFixed(2), '', +ahuTotHP.toFixed(2)]);
 
   rows.push([]);
   rows.push(['CHW SYSTEM']);
@@ -1626,7 +2234,9 @@ async function exportExcel() {
   // Kitchen / AHU / CHW roll-up — computed once, reused in Summary sheet + own sheets below
   const kr = calcKitchen(STATE.kitchen);
   const cc = calcCHW(STATE.chw);
-  const ahuTotHP = calcFanHP(totCFM, STATE.ahu.sp||1.5, STATE.ahu.fanEff||0.65, STATE.ahu.motorEff||0.90);
+  const pt = projectTotals();
+  const tt = pt.toilets;
+  const ahuTotHP = calcFanHP(pt.totCFM, STATE.ahu.sp||1.5, STATE.ahu.fanEff||0.65, STATE.ahu.motorEff||0.90);
 
   // ── Sheet 1: Summary ──────────────────────────────────────────────────
   const summaryData = [
@@ -1650,14 +2260,23 @@ async function exportExcel() {
   summaryData.push(['','TOTAL', totArea, '','',
     +totFA.toFixed(2), totOcc, +totLt.toFixed(1), +totEq.toFixed(2),
     +totTR.toFixed(2), +totCFM.toFixed(2), '','','', totSTR]);
+  summaryData.push([]);
+  summaryData.push(['','ROOMS TR', '', '', '', '', '', '', '', +totTR.toFixed(2)]);
+  summaryData.push(['','TOILETS TR (make-up air + AC toilets)', '', '', '', '', '', '', '', +tt.tr.toFixed(2)]);
+  summaryData.push(['','GRAND TOTAL TR', '', '', '', +pt.totOA.toFixed(0), '', '', '', +pt.totTR.toFixed(2), +pt.totCFM.toFixed(0)]);
   summaryData.push([],[]);
-  summaryData.push(['System Summary (Kitchen Ventilation / AHU / CHW) — see dedicated sheets for full detail']);
+  summaryData.push(['System Summary (Kitchen Ventilation / Toilet Exhaust / AHU / CHW) — see dedicated sheets for full detail']);
   summaryData.push(['Kitchen — Exhaust CFM (Max)', +kr.exhaust.toFixed(0)]);
   summaryData.push(['Kitchen — Total Makeup Air CFM', +kr.makeup.toFixed(0)]);
   summaryData.push(['Kitchen — External Tempered CFM', +kr.external.toFixed(0)]);
   summaryData.push(['Kitchen — Internal from AC CFM', +kr.internal.toFixed(0)]);
-  summaryData.push(['AHU — Total Supply CFM', +totCFM.toFixed(0)]);
-  summaryData.push(['AHU — Total Cooling Tons', +totTR.toFixed(2)]);
+  summaryData.push(['Toilets — Total Exhaust CFM', +tt.exhaust.toFixed(0)]);
+  summaryData.push(['Toilets — Exhaust Fan Selection CFM (+margin)', +tt.fanCFM.toFixed(0)]);
+  summaryData.push(['Toilets — Exhaust Fan Motor HP', +tt.fanHP.toFixed(2)]);
+  summaryData.push(['Toilets — Make-up OA on AHUs (CFM)', +tt.makeupCFM.toFixed(0)]);
+  summaryData.push(['Toilets — Load Added (TR)', +tt.tr.toFixed(2)]);
+  summaryData.push(['AHU — Total Supply CFM', +pt.totCFM.toFixed(0)]);
+  summaryData.push(['AHU — Total Cooling Tons', +pt.totTR.toFixed(2)]);
   summaryData.push(['AHU — Total Fan Motor HP', +ahuTotHP.toFixed(2)]);
   summaryData.push(['AHU — No. of AHUs', STATE.ahu.rows.length || rooms.length]);
   summaryData.push(['CHW — Plant Load (TR)', +cc.totTR.toFixed(2)]);
@@ -1678,6 +2297,9 @@ async function exportExcel() {
     'ADP = 54°F (Apparatus Dew Point fixed for Indian commercial HVAC)',
     'ERSH × 1.1 | ERLH × 1.05 | GTH × 1.03 (safety factors)',
     'Dehumidifier CFM = ERSH_total / (1.08 × (73.4 - 54)) = ERSH / (1.08 × 19.4)',
+    'Toilets kept negative; exhaust = MAX(ACH, per-fixture, per-area) per ASHRAE 62.1 / IMC / NBC 2016',
+    'Toilet exhaust drawn from AC areas is made up as outdoor air at the serving AHU and added to the cooling load',
+    'Toilet pressure: Q = 2610 x A x sqrt(dP); target -2.5 Pa min, -5 to -10 Pa typical',
   ].forEach((a, i) => summaryData.push([i+1, a]));
   const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
   wsSum['!cols'] = [{wch:8},{wch:22},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14},{wch:16},{wch:14},{wch:10},{wch:12},{wch:10},{wch:8},{wch:12},{wch:12}];
@@ -1787,10 +2409,48 @@ async function exportExcel() {
   wsK['!cols'] = [{wch:38},{wch:15},{wch:10}];
   XLSX.utils.book_append_sheet(wb, wsK, 'Kitchen Ventilation');
 
+  // ── Sheet: Toilet / Washroom ─────────────────────────────────────────
+  if (STATE.toilets.length) {
+    const ts = STATE.toiletSys;
+    const tData = [
+      ['TOILET / WASHROOM — EXHAUST, NEGATIVE PRESSURE & MAKE-UP AIR LOAD'],
+      [`Project: ${p.name||'—'}`],
+      ['Exhaust = MAX(ACH: Vol×ACH/60, Fixture: (WC+Urinal)×rate + Shower×rate, Area: sqft×rate) | ΔP(inWG) = (Q_transfer / (2610 × A_ft²))², 1 inWG = 249 Pa'],
+      [],
+      ['#','Toilet','Usage','Conditioning','L (ft)','W (ft)','H (ft)','Area (sqft)','Volume (cu.ft)','WC','Urinal','Shower',
+       'ACH CFM','Fixture CFM','Area CFM','Governing','Exhaust CFM','Supply CFM','Transfer CFM','Actual ACH',
+       'Opening (sq.in)','Pressure (Pa)','Req. Opening @ target (sq.in)','Add Grille Free Area (sq.in)',
+       'Make-up From','Load Added To','Make-up Load (TR)','Room Load (TR)','Total Load (TR)','Notes'],
+    ];
+    STATE.toilets.forEach((t, i) => {
+      const c = tt.calcs[i];
+      const ri = rooms.findIndex(r => String(r.id) === String(t.servedBy));
+      tData.push(['T'+(i+1), t.name||`Toilet ${i+1}`, t.usage, c.isAC?'AC':'Non-AC', +t.L||0, +t.W||0, +t.H||0,
+        +c.area.toFixed(1), +c.vol.toFixed(0), +t.wc||0, +t.urinal||0, +t.shower||0,
+        +c.achCFM.toFixed(0), +c.fixtureCFM.toFixed(0), +c.areaCFM.toFixed(0), c.governing,
+        +c.exhaust.toFixed(0), +c.supply.toFixed(0), +c.transfer.toFixed(0), +c.achActual.toFixed(1),
+        +(c.leakArea*144).toFixed(0), isFinite(c.dpPa) ? +(-c.dpPa).toFixed(1) : 'no opening',
+        +(c.reqArea*144).toFixed(0), +c.reqGrilleSqIn.toFixed(0),
+        c.makeupCounts?'AC area':'Non-AC / OA', ri >= 0 ? (rooms[ri].name || `Room ${ri+1}`) : 'Separate',
+        +c.makeupTR.toFixed(2), +c.ownTR.toFixed(2), +c.tonnage.toFixed(2), t.notes||'']);
+    });
+    tData.push(['TOTAL','','','','','','','','','','','','','','','', +tt.exhaust.toFixed(0), +tt.supply.toFixed(0), +tt.transfer.toFixed(0),
+      '','','','','','','', +tt.makeupTR.toFixed(2), +(tt.tr - tt.makeupTR).toFixed(2), +tt.tr.toFixed(2)]);
+    tData.push([]);
+    tData.push(['EXHAUST FAN']);
+    tData.push(['Selection CFM (+' + (+ts.margin||0) + '% margin)', +tt.fanCFM.toFixed(0)]);
+    tData.push(['Static Pressure (inWG)', +ts.sp||0]);
+    tData.push(['Fan / Motor Efficiency', `${ts.fanEff} / ${ts.motorEff}`]);
+    tData.push(['Fan Motor HP  [CFM × SP / (6356 × ηf × ηm)]', +tt.fanHP.toFixed(2)]);
+    const wsT = XLSX.utils.aoa_to_sheet(tData);
+    wsT['!cols'] = [{wch:6},{wch:22}].concat(Array(28).fill({wch:12}));
+    XLSX.utils.book_append_sheet(wb, wsT, 'Toilet Exhaust');
+  }
+
   // ── Sheet: AHU Schedule ───────────────────────────────────────────────
   const ahuData = [
     ['AHU SCHEDULE'],
-    [`Project: ${p.name||'—'}`, '', '', `Total Tons: ${n(totTR)} TR`, '', `Total CFM: ${n(totCFM,0)}`],
+    [`Project: ${p.name||'—'}`, '', '', `Total Tons: ${n(pt.totTR)} TR`, '', `Total CFM: ${n(pt.totCFM,0)}`],
     [`Fan HP = (CFM × SP_inWG) / (6356 × Fan_Eff × Motor_Eff) | Fan Eff: ${STATE.ahu.fanEff} | Motor Eff: ${STATE.ahu.motorEff}`],
     [],
     ['Tag','Area Served','Supply CFM','Cooling Tons','Static Pr. (inWG)','Fan HP','Motor HP','Filter Type'],
